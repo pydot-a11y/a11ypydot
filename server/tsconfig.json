@@ -1,0 +1,16 @@
+{
+  "compilerOptions": {
+    "target": "es2017",                       // Target modern Node.js versions
+    "module": "commonjs",                     // Standard module system for Node.js
+    "lib": ["es6"],                           // Standard ES6 libraries
+    "rootDir": "./src",                       // Source files directory
+    "outDir": "./dist",                       // Output directory for compiled JavaScript
+    "esModuleInterop": true,                  // Enables CJS/ESM interop
+    "forceConsistentCasingInFileNames": true, // Enforces consistent file naming
+    "strict": true,                           // Enables all strict type-checking options
+    "skipLibCheck": true,                     // Skip type checking of declaration files
+    "resolveJsonModule": true                 // Allows importing .json files
+  },
+  "include": ["src/**/*.ts"],                 // Which files to include
+  "exclude": ["node_modules"]                 // Which files/folders to exclude
+}

@@ -1,0 +1,34 @@
+[
+    {
+      "_id": { "$oid": "1" }, "instance": "prod-us", "workspaceId": 101, "archived": false,
+      "createdAt": { "$date": "2025-02-15T10:00:00.000Z" }, "readRole": "viewer", "writeRole": "editor"
+    },
+    {
+      "_id": { "$oid": "2" }, "instance": "prod-eu", "workspaceId": 102, "archived": true,
+      "createdAt": { "$date": "2025-04-20T11:00:00.000Z" }, "readRole": "viewer", "writeRole": "admin"
+    },
+    {
+      "_id": { "$oid": "3" }, "instance": "prod-us", "workspaceId": 103, "archived": false,
+      "createdAt": { "$date": "2025-07-01T12:00:00.000Z" }, "readRole": "viewer", "writeRole": "editor"
+    },
+    {
+      "_id": { "$oid": "4" }, "instance": "dev-us", "workspaceId": 201, "archived": false,
+      "createdAt": { "$date": "2024-08-10T09:00:00.000Z" }, "readRole": "viewer", "writeRole": "editor"
+    },
+    {
+      "_id": { "$oid": "5" }, "instance": "prod-eu", "workspaceId": 202, "archived": true,
+      "createdAt": { "$date": "2024-11-05T14:00:00.000Z" }, "readRole": "viewer", "writeRole": "admin"
+    },
+    {
+      "_id": { "$oid": "6" }, "instance": "prod-us", "workspaceId": 203, "archived": false,
+      "createdAt": { "$date": "2024-10-01T15:00:00.000Z" }, "readRole": "viewer", "writeRole": "editor"
+    },
+    {
+      "_id": { "$oid": "7" }, "instance": "prod-us", "workspaceId": 203, "archived": false, 
+      "createdAt": { "$date": "2024-10-01T15:00:00.000Z" }, "readRole": "viewer", "writeRole": "editor" 
+    }, 
+    {
+      "_id": { "$oid": "8" }, "instance": "staging", "workspaceId": 301, "archived": false,
+      "createdAt": { "$date": "2023-01-01T00:00:00.000Z" }, "readRole": "none", "writeRole": "none"
+    }
+  ]
