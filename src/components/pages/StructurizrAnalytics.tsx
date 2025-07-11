@@ -24,9 +24,13 @@ interface PageContextType {
 }
 
 const StructurizrAnalytics: React.FC = () => {
-  const outletContext = useOutletContext<PageContextType | null>();
-  const activeFilters = useMemo(() => outletContext ? outletContext.activeFilters : { timeframe: 'all-time', department: 'ALL_DEPARTMENTS', region: 'ALL_REGIONS'} as ActiveFilters, [outletContext]);
+ // Add this block to the top of Overview.tsx and StructurizrAnalytics.tsx
+const outletContext = useOutletContext<PageContextType | null>();
 
+if (!outletContext) {
+  return <div className="p-6 text-center text-gray-500">Loading filters...</div>;
+}
+const { activeFilters } = outletContext;
   // 1. Fetch Structurizr Workspaces Trend (Multi-Line Chart)
   const { data: workspacesTrendData, isLoading: isLoadingWorkspacesTrend, error: errorWorkspacesTrend } = useQuery<WorkspaceTrendDataPoint[], Error>({
     queryKey: ['structurizrWorkspacesTrend', activeFilters],

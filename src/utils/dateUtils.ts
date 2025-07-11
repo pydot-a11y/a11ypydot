@@ -19,7 +19,7 @@ export const getTimeframeDates = (timeframe: TimeframeId): { startDate: Date; en
     case 'month':
       return { startDate: subMonths(endDate, 1), endDate };
     case 'quarter':
-      return { startDate: subMonths(endDate, 3), endDate };
+      return { startDate: subDays(endDate, 90), endDate };
     case 'year':
       return { startDate: subYears(endDate, 1), endDate };
     case 'all-time':

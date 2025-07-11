@@ -119,16 +119,46 @@ export const fetchDistinctC4TSUsers = async (): Promise<string[]> => {
 // These functions are left as stubs so the rest of the application doesn't break.
 // They would need their own dedicated backend endpoints and transformation logic.
 
+// src/services/apiService.ts
+
+// --- REBUILD THIS FUNCTION ---
 export const fetchOverviewSummaryStats = async (filters: ActiveFilters): Promise<OverviewSummaryStats> => {
-    console.warn("STUBBED: Using mock data for OverviewSummaryStats. Filters:", filters);
-    // Returning mock data so the app doesn't break
-    const rawLogs = await fetchC4TSAccessLogsInternal(filters); // Example: Base total hits on logs
-    return {
-        totalApiHits: { value: rawLogs.length, trend: { value: 10.0, direction: 'up' } },
-        activeWorkspaces: { value: 36, trend: { value: 3.0, direction: 'down' } },
-        totalUsers: { value: extractDistinctUsers(rawLogs).length, trend: { value: 3.2, direction: 'up' } },
-        totalDepartments: { value: 23, trend: { value: 8.3, direction: 'up' } },
-    };
+  console.log("FETCHING REAL STATS with filters:", filters);
+
+  // 1. Get date ranges for trend calculation (last 3 months vs. 3 months prior)
+  const { currentPeriod, previousPeriod } = getTrendCalculationPeriods();
+
+  // 2. We don't use the UI timeframe for trend calculation, but we respect the user/region filters.
+  const trendFilters: ActiveFilters = { ...filters, timeframe: 'custom' as const };
+  
+  // 3. Fetch logs for both periods IN PARALLEL for efficiency
+  const [currentPeriodLogs, previousPeriodLogs] = await Promise.all([
+      fetchC4TSAccessLogsInternal(trendFilters, currentPeriod.startDate, currentPeriod.endDate),
+      fetchC4TSAccessLogsInternal(trendFilters, previousPeriod.startDate, previousPeriod.endDate),
+  ]);
+  
+  // 4. Calculate stats for each period
+  const currentTotalHits = currentPeriodLogs.length;
+  const previousTotalHits = previousPeriodLogs.length;
+  
+  const currentTotalUsers = extractDistinctUsers(currentPeriodLogs).length;
+  const previousTotalUsers = extractDistinctUsers(previousPeriodLogs).length;
+  
+  // 5. Calculate trends
+  const totalApiHitsTrend = calculateTrend(currentTotalHits, previousTotalHits);
+  const totalUsersTrend = calculateTrend(currentTotalUsers, previousTotalUsers);
+
+  // 6. NOW, fetch data for the timeframe selected in the UI to display the main card value
+  const selectedTimeframeLogs = await fetchC4TSAccessLogsInternal(filters);
+  
+  // 7. Assemble the final object
+  return {
+      totalApiHits: { value: selectedTimeframeLogs.length, trend: totalApiHitsTrend },
+      totalUsers: { value: extractDistinctUsers(selectedTimeframeLogs).length, trend: totalUsersTrend },
+      // For static data, clearly indicate it's not available
+      activeWorkspaces: { value: 0, trend: { value: 0, direction: 'neutral' } },
+      totalDepartments: { value: 0, trend: { value: 0, direction: 'neutral' } },
+  };
 };
 
 export const fetchC4TSOverviewChartData = async (filters: ActiveFilters): Promise<any> => {

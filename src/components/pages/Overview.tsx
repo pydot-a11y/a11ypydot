@@ -23,22 +23,48 @@ interface PageContextType {
 }
 
 const Overview: React.FC = () => {
-  const outletContext = useOutletContext<PageContextType | null>();
-  const activeFilters = useMemo(() => outletContext ? outletContext.activeFilters : { timeframe: 'all-time', department: 'ALL_DEPARTMENTS', region: 'ALL_REGIONS'} as ActiveFilters, [outletContext]);
+  // Add this block to the top of Overview.tsx and StructurizrAnalytics.tsx
+const outletContext = useOutletContext<PageContextType | null>();
+
+if (!outletContext) {
+  return <div className="p-6 text-center text-gray-500">Loading filters...</div>;
+}
+const { activeFilters } = outletContext;
 
   // 1. Fetch Overview Summary Stats
   const { data: overviewStatsAPIData, isLoading: isLoadingOverviewStats, error: errorOverviewStats } = useQuery<OverviewSummaryStats, Error>({
     queryKey: ['overviewSummaryStats', activeFilters], queryFn: () => fetchOverviewSummaryStats(activeFilters), enabled: !!outletContext,
   });
-  const statsForDisplay: StatsCardDisplayData[] = useMemo(() => {
-    if (!overviewStatsAPIData) return [];
-    return [
-      { title: 'Total API Hits (C4TS)', value: formatNumber(overviewStatsAPIData.totalApiHits.value), trend: overviewStatsAPIData.totalApiHits.trend },
-      { title: 'Active Workspace (Structurizr)', value: formatNumber(overviewStatsAPIData.activeWorkspaces.value), trend: overviewStatsAPIData.activeWorkspaces.trend },
-      { title: 'Total Users', value: formatNumber(overviewStatsAPIData.totalUsers.value), trend: overviewStatsAPIData.totalUsers.trend },
-      { title: 'Total Departments', value: formatNumber(overviewStatsAPIData.totalDepartments.value), trend: overviewStatsAPIData.totalDepartments.trend },
-    ];
-  }, [overviewStatsAPIData]);
+ // src/pages/Overview.tsx
+
+// Find the useMemo for `statsForDisplay` and change the last two items:
+const statsForDisplay: StatsCardDisplayData[] = useMemo(() => {
+  if (!overviewStatsAPIData) return [];
+  return [
+    {
+      title: 'Total API Hits (C4TS)',
+      value: formatNumber(overviewStatsAPIData.totalApiHits.value),
+      trend: overviewStatsAPIData.totalApiHits.trend,
+    },
+    {
+      title: 'Total Users',
+      value: formatNumber(overviewStatsAPIData.totalUsers.value),
+      trend: overviewStatsAPIData.totalUsers.trend,
+    },
+    // --- START OF CHANGE ---
+    {
+      title: 'Active Workspace (Structurizr)',
+      value: "N/A", // Display N/A as we don't have the data source
+      trend: undefined, // Hides the trend percentage
+    },
+    {
+      title: 'Total Departments',
+      value: "N/A", // Display N/A as we don't have the data source
+      trend: undefined, // Hides the trend percentage
+    },
+    // --- END OF CHANGE ---
+  ];
+}, [overviewStatsAPIData]);
 
   // 2. Fetch C4TS Overview Chart Data
   const { data: c4tsChartAPIData, isLoading: isLoadingC4TSChart, error: errorC4TSChart } = useQuery<{ seriesData: DataPoint[]; mostUsedEndpoint?: string; topUser?: string; }, Error>({
