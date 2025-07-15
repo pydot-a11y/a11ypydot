@@ -1,61 +1,65 @@
 // src/types/analytics.ts
-import { Trend, UserData, ApiEndpointData } from './common'; // Assuming common.ts is in the same folder
+import { Trend } from './common'; // Import Trend from common types
 
-// For simple X-Y data points, e.g., for line charts
+// --- RAW DATA TYPES (FROM BACKEND) ---
+
+// Raw log format from the C4TS endpoint
+export interface RawApiLog {
+  _id: { $oid: string };
+  user: string; // This is the "eonid"
+  uri: string;
+  url: string;
+  createdAt: string; // ISO Date String, e.g., "2025-02-15T10:00:00.000Z"
+}
+
+// Raw log format from the Structurizr endpoint
+export interface RawStructurizrLog {
+  _id: { $oid: string };
+  archived: boolean;
+  eonid: string;
+  instance: string;
+  readRole: string;
+  workspaceId: number;
+  writeRole: string;
+  createdAt?: { $date: string };
+  deleted?: boolean; // Assuming a 'deleted' field might exist
+}
+
+
+// --- TRANSFORMED DATA TYPES (FOR UI COMPONENTS) ---
+
+// For simple time-series line charts
 export interface DataPoint {
-  date: string; // Could also be a generic 'x' label
+  date: string; // e.g., "Mar 23"
   value: number;
 }
 
-// For bar chart data or similar category-value pairs
+// For bar charts or donut chart slices
 export interface CategoricalChartData {
-  name: string; // Category name (e.g., user name, endpoint name)
-  value: number; // The metric value
+  name: string; // Category name (e.g., user name, access method)
+  value: number;
+  color?: string; // Optional for donut charts
 }
 
-// Renamed from OverviewStats to be more specific to the raw data from an API
-export interface OverviewSummaryStats {
-  totalApiHits: {
-    value: number;
-    trend: Trend;
-  };
-  activeWorkspaces: {
-    value: number;
-    trend: Trend;
-  };
-  totalUsers: {
-    value: number;
-    trend: Trend;
-  };
-  totalDepartments: {
-    value: number;
-    trend: Trend;
-  };
-}
-
-// This is now more of a "page-specific" data structure.
-export interface C4TSPageData {
-  apiHitsOverTime: DataPoint[];
-  topEndpoints: ApiEndpointData[]; // Reusing ApiEndpointData
-  topUsers: CategoricalChartData[]; // Using CategoricalChartData for user:hits
-}
-
-// This is now more of a "page-specific" data structure.
-export interface StructurizrPageData {
-  // For the multi-line chart, this structure is better than separate arrays of DataPoint.
-  // Each point in the array represents a date, and for that date, we have active, created, deleted values.
-  workspacesTrend: {
+// For multi-line trend charts like the Structurizr workspace chart
+export interface MultiLineDataPoint {
     date: string;
-    active: number;
-    created: number;
-    deleted: number;
-  }[];
-  accessMethods: {
-    id: string; // For keys and identifying segments
-    name: string; // "API", "CLI"
-    users: number;
-    rate: number; // e.g., 1.94 for 1.94%
-    color?: string; // Optional: for donut chart slices
-  }[];
-  topUsers: CategoricalChartData[]; // Using CategoricalChartData for user:workspaces
+    [key: string]: any; // Allows for multiple dynamic lines (e.g., active: 10, created: 5)
 }
+
+
+// --- AGGREGATED & API-SPECIFIC TYPES ---
+
+// For the main overview summary cards
+// --- THIS IS THE CORRECTED INTERFACE ---
+export interface OverviewSummaryStats {
+  totalApiHits: { value: number; trend: Trend };
+  activeWorkspaces: { value: number; trend: Trend };
+  totalC4TSUsers: { value: number; trend: Trend }; // CHANGED: Was 'totalUsers', now more specific
+  totalStructurizrUsers: { value: number; trend: Trend }; // CHANGED: Was 'totalDepartments'
+}
+// --- END CORRECTION ---
+
+
+// This is an alias for a type defined in common.ts, kept for clarity if needed
+export type { ApiEndpointData } from './common';
