@@ -1,4 +1,5 @@
 // src/services/apiService.ts
+
 import axios from 'axios';
 import { API_BASE_URL } from '../config';
 import { getTimeframeDates, formatDateForApi, getTrendCalculationPeriods } from '../utils/dateUtils';
@@ -7,7 +8,7 @@ import { RawApiLog, RawStructurizrLog, OverviewSummaryStats } from '../types/ana
 import { ActiveFilters, Trend } from '../types/common';
 
 // --- CORE DATA FETCHERS ---
-// These are the only functions that should talk directly to the backend.
+// These functions talk directly to the backend. No changes needed here.
 
 export const fetchRawC4TSLogsByDate = async (startDate: Date, endDate: Date): Promise<RawApiLog[]> => {
   const params = new URLSearchParams({ startDate: formatDateForApi(startDate), endDate: formatDateForApi(endDate) });
@@ -50,6 +51,9 @@ export const fetchDistinctC4TSUsers = async (): Promise<string[]> => {
   return Array.from(extractC4TSDistinctUsers(rawLogs)).sort();
 };
 
+// =========================================================================
+// == THIS IS THE CORRECTED FUNCTION FOR THE OVERVIEW PAGE ==
+// =========================================================================
 export const fetchOverviewPageData = async (filters: ActiveFilters): Promise<{
     stats: OverviewSummaryStats,
     c4tsLogs: RawApiLog[],
@@ -59,7 +63,7 @@ export const fetchOverviewPageData = async (filters: ActiveFilters): Promise<{
   const { currentPeriod, previousPeriod } = getTrendCalculationPeriods();
   const { startDate: selectedStartDate, endDate: selectedEndDate } = getTimeframeDates(filters.timeframe);
 
-  // 2. Fetch all necessary data in parallel
+  // 2. Fetch all necessary data from both sources in parallel for maximum efficiency
   const [
     c4tsCurrent, c4tsPrevious, c4tsSelected,
     structurizrCurrent, structurizrPrevious, structurizrSelected
@@ -72,27 +76,29 @@ export const fetchOverviewPageData = async (filters: ActiveFilters): Promise<{
     fetchRawStructurizrLogsByDate(selectedStartDate, selectedEndDate)
   ]);
   
-  // 3. Apply frontend filtering based on the selected user
+  // 3. Define frontend filtering functions based on the selected user
   const filterC4TSByUser = (logs: RawApiLog[]) => filters.user !== 'ALL_USERS' ? logs.filter(log => log.user === filters.user) : logs;
   const filterStructurizrByUser = (logs: RawStructurizrLog[]) => filters.user !== 'ALL_USERS' ? logs.filter(log => log.eonid === filters.user) : logs;
 
-  // 4. Calculate trend values
-  const c4tsApiHitsTrend = calculateTrend(filterC4TSByUser(c4tsCurrent).length, filterC4TSByUser(c4tsPrevious).length);
-  const structurizrUsersTrend = calculateTrend(extractStructurizrDistinctUsers(filterStructurizrByUser(structurizrCurrent)).size, extractStructurizrDistinctUsers(filterStructurizrByUser(structurizrPrevious)).size);
+  // 4. Calculate trend values using filtered data
+  const totalApiHitsTrend = calculateTrend(filterC4TSByUser(c4tsCurrent).length, filterC4TSByUser(c4tsPrevious).length);
   const activeWorkspacesTrend = calculateTrend(getStructurizrActiveWorkspaceCount(filterStructurizrByUser(structurizrCurrent)), getStructurizrActiveWorkspaceCount(filterStructurizrByUser(structurizrPrevious)));
+  const totalC4TSUsersTrend = calculateTrend(extractC4TSDistinctUsers(filterC4TSByUser(c4tsCurrent)).size, extractC4TSDistinctUsers(filterC4TSByUser(c4tsPrevious)).size);
+  const totalStructurizrUsersTrend = calculateTrend(extractStructurizrDistinctUsers(filterStructurizrByUser(structurizrCurrent)).size, extractStructurizrDistinctUsers(filterStructurizrByUser(structurizrPrevious)).size);
   
-  // 5. Calculate main card values for the selected timeframe
+  // 5. Calculate main card values for the selected timeframe using filtered data
   const c4tsSelectedFiltered = filterC4TSByUser(c4tsSelected);
   const structurizrSelectedFiltered = filterStructurizrByUser(structurizrSelected);
 
+  // 6. Assemble the stats object, now matching the CORRECTED OverviewSummaryStats interface
   const overviewStats: OverviewSummaryStats = {
-    totalApiHits: { value: c4tsSelectedFiltered.length, trend: c4tsApiHitsTrend },
-    totalUsers: { value: extractStructurizrDistinctUsers(structurizrSelectedFiltered).size, trend: structurizrUsersTrend }, // This card is now Structurizr Users
+    totalApiHits: { value: c4tsSelectedFiltered.length, trend: totalApiHitsTrend },
     activeWorkspaces: { value: getStructurizrActiveWorkspaceCount(structurizrSelectedFiltered), trend: activeWorkspacesTrend },
-    totalDepartments: { value: 0, trend: { value: 0, direction: 'neutral' } }, // Replaced by Total Users (Structurizr)
+    totalC4TSUsers: { value: extractC4TSDistinctUsers(c4tsSelectedFiltered).size, trend: totalC4TSUsersTrend },
+    totalStructurizrUsers: { value: extractStructurizrDistinctUsers(structurizrSelectedFiltered).size, trend: totalStructurizrUsersTrend },
   };
 
-  // 6. Return all data needed by the Overview page to prevent refetching
+  // 7. Return all data needed by the Overview page to prevent refetching
   return {
     stats: overviewStats,
     c4tsLogs: c4tsSelectedFiltered,
