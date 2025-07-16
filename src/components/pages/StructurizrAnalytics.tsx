@@ -1,72 +1,93 @@
 // src/pages/StructurizrAnalytics.tsx
+
 import React, { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useOutletContext } from 'react-router-dom';
 
+// Component Imports
 import WorkspaceTrendChart from '../../components/charts/WorkspaceTrendChart';
 import DonutChartComponent, { DonutChartDataItem } from '../../components/charts/DonutChartComponent';
 import HorizontalBarChart from '../../components/charts/HorizontalBarChart';
 
+// API & Transformer Imports
+import { fetchRawStructurizrLogsByDate } from '../../services/apiService';
 import {
-  fetchStructurizrWorkspacesTrend,
-  fetchStructurizrAccessMethods,
-  fetchStructurizrTopUsersChartData,
-  WorkspaceTrendDataPoint, // Type from apiService
-  AccessMethodData,        // Type from apiService
-} from '../../services/apiService';
-import { CategoricalChartData } from '../../types/analytics';
+  transformStructurizrToMultiLineTrend,
+  transformStructurizrToAccessMethods,
+  transformStructurizrToTopUsers,
+} from '../../utils/dataTransformer';
+import { getTimeframeDates } from '../../utils/dateUtils';
+
+// Type Imports
+import { MultiLineDataPoint, CategoricalChartData, RawStructurizrLog } from '../../types/analytics';
 import { ActiveFilters } from '../../types/common';
 
+// Helper for consistent number formatting
 const formatNumber = (num: number | undefined): string => (num || 0).toLocaleString();
 
+// Context Type Definition
 interface PageContextType {
   activeFilters: ActiveFilters;
 }
 
 const StructurizrAnalytics: React.FC = () => {
- // Add this block to the top of Overview.tsx and StructurizrAnalytics.tsx
-const outletContext = useOutletContext<PageContextType | null>();
+  const outletContext = useOutletContext<PageContextType | null>();
 
-if (!outletContext) {
-  return <div className="p-6 text-center text-gray-500">Loading filters...</div>;
-}
-const { activeFilters } = outletContext;
-  // 1. Fetch Structurizr Workspaces Trend (Multi-Line Chart)
-  const { data: workspacesTrendData, isLoading: isLoadingWorkspacesTrend, error: errorWorkspacesTrend } = useQuery<WorkspaceTrendDataPoint[], Error>({
-    queryKey: ['structurizrWorkspacesTrend', activeFilters],
-    queryFn: () => fetchStructurizrWorkspacesTrend(activeFilters),
-    enabled: !!outletContext,
-  });
-  // Note: The specific "Active: 30, Created: 5, Deleted: 2" tooltip for Mar 23 is handled
-  // inside WorkspaceTrendChart's CustomTooltip if that specific logic is added there.
-  // Otherwise, it shows actual line values.
+  // Guard Clause: Render a loading state until filters are available
+  if (!outletContext) {
+    return <div className="p-6 text-center text-gray-500">Initializing...</div>;
+  }
+  const { activeFilters } = outletContext;
 
-  // 2. Fetch Workspace Access Methods (Donut Chart & Table)
-  const { data: accessMethodsAPIData, isLoading: isLoadingAccessMethods, error: errorAccessMethods } = useQuery<AccessMethodData[], Error>({
-    queryKey: ['structurizrAccessMethods', activeFilters.department, activeFilters.region], // Not usually filtered by timeframe
-    queryFn: () => fetchStructurizrAccessMethods(activeFilters),
-    enabled: !!outletContext,
+  // --- 1. MASTER DATA QUERY ---
+  // This single query fetches all raw Structurizr log data for the selected timeframe.
+  const { data: rawLogs, isLoading, error } = useQuery<RawStructurizrLog[], Error>({
+    queryKey: ['structurizrRawLogs', activeFilters.timeframe],
+    queryFn: () => {
+      const { startDate, endDate } = getTimeframeDates(activeFilters.timeframe);
+      return fetchRawStructurizrLogsByDate(startDate, endDate);
+    },
   });
 
-  // Transform AccessMethodData for DonutChartComponent
-  const donutChartAccessData: DonutChartDataItem[] | undefined = useMemo(() => {
-    if (!accessMethodsAPIData) return undefined;
-    return accessMethodsAPIData.map((method: AccessMethodData) => ({
-      name: method.name,
-      value: method.users, // Using 'users' for the donut slice size
-      color: method.color || '#CCCCCC',
-    }));
-  }, [accessMethodsAPIData]);
+  // --- 2. FRONTEND FILTERING & DATA TRANSFORMATION (DERIVED DATA) ---
 
-  // 3. Fetch Top Users (Bar Chart)
-  const { data: topUsersChartAPIData, isLoading: isLoadingTopUsers, error: errorTopUsers } = useQuery<CategoricalChartData[], Error>({
-    queryKey: ['structurizrTopUsersChart', activeFilters.department, activeFilters.region],
-    queryFn: () => fetchStructurizrTopUsersChartData(activeFilters),
-    enabled: !!outletContext,
-  });
-  // TODO: The "3.5% Increase" needs its own data source or calculation.
+  // First, filter the raw data by the selected user.
+  const filteredLogs = useMemo(() => {
+    if (!rawLogs) return [];
+    if (activeFilters.user === 'ALL_USERS') return rawLogs;
+    return rawLogs.filter(log => log.eonid === activeFilters.user);
+  }, [rawLogs, activeFilters.user]);
 
-  if (!outletContext) return <div className="p-6 text-center">Loading filters...</div>;
+  // Now, transform the filtered data for each component using useMemo for efficiency.
+  
+  // For the main trend chart, we typically want to show the overall trend, not filtered by a single user.
+  // So we use the original `rawLogs`.
+  const workspacesTrendData: MultiLineDataPoint[] = useMemo(() => {
+    return rawLogs ? transformStructurizrToMultiLineTrend(rawLogs) : [];
+  }, [rawLogs]);
+
+  // For Top Users, we use the `filteredLogs` to respect the user filter.
+  // If "All Users" is selected, this shows the overall top users.
+  const topUsersData: CategoricalChartData[] = useMemo(() => {
+    return filteredLogs ? transformStructurizrToTopUsers(filteredLogs, 6) : [];
+  }, [filteredLogs]);
+
+  // Access Methods are also derived from the `filteredLogs`.
+  const accessMethodsData = useMemo(() => {
+    return filteredLogs ? transformStructurizrToAccessMethods(filteredLogs) : [];
+  }, [filteredLogs]);
+
+  // The access methods table and donut chart need the same data, just formatted differently for the donut.
+  const donutChartAccessData: DonutChartDataItem[] = useMemo(() => {
+      return accessMethodsData.map(d => ({...d, value: d.value}));
+  }, [accessMethodsData]);
+  
+
+  // --- 3. RENDER LOGIC ---
+
+  // Use the loading and error state from our single master query
+  if (isLoading) return <div className="p-6 text-center text-gray-500">Loading Structurizr Data...</div>;
+  if (error) return <div className="p-6 text-center text-red-500">Error fetching data: {error.message}</div>;
 
   return (
     <div className="space-y-6">
@@ -77,17 +98,7 @@ const { activeFilters } = outletContext;
           <span className="text-sm text-gray-500">Timeframe: {activeFilters.timeframe}</span>
         </div>
         <div className="px-6 pb-6">
-          {isLoadingWorkspacesTrend && <p className="text-center h-72 flex items-center justify-center text-gray-500">Loading Workspaces Trend chart...</p>}
-          {errorWorkspacesTrend && <p className="text-center h-72 flex items-center justify-center text-red-500">Error: {errorWorkspacesTrend.message}</p>}
-          {workspacesTrendData && (
-            <WorkspaceTrendChart
-              data={workspacesTrendData}
-              aspect={3} // Adjust aspect ratio
-            />
-          )}
-          {!isLoadingWorkspacesTrend && !errorWorkspacesTrend && (!workspacesTrendData || workspacesTrendData.length === 0) && (
-            <p className="text-center h-72 flex items-center justify-center text-gray-500">No data available for Workspaces Trend.</p>
-          )}
+          <WorkspaceTrendChart data={workspacesTrendData} aspect={3} />
         </div>
       </div>
 
@@ -96,39 +107,28 @@ const { activeFilters } = outletContext;
         {/* Access Methods Donut Chart & Table Card */}
         <div className="lg:col-span-2 bg-white rounded-lg shadow p-6">
           <h2 className="text-lg font-medium text-gray-900 mb-4">How workspaces are being accessed</h2>
-          {isLoadingAccessMethods && <p className="text-center py-10 text-gray-500">Loading access methods data...</p>}
-          {errorAccessMethods && <p className="text-center py-10 text-red-500">Error: {errorAccessMethods.message}</p>}
-          {accessMethodsAPIData && donutChartAccessData && (
+          {accessMethodsData.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-center">
-              <div className="md:col-span-1 h-48 md:h-full"> {/* Ensure donut has enough height */}
-                <DonutChartComponent
-                  data={donutChartAccessData}
-                  aspect={1} // Keep donut square-ish
-                  innerRadius="60%"
-                  outerRadius="85%"
-                  showLegend={false} // Table acts as legend
-                  // centerText={{ primary: "Usage" }} // Optional center text
-                />
+              <div className="md:col-span-1 h-48 md:h-full">
+                <DonutChartComponent data={donutChartAccessData} aspect={1} innerRadius="60%" outerRadius="85%" showLegend={false} />
               </div>
               <div className="md:col-span-2">
                 <div className="overflow-x-auto">
                   <table className="min-w-full">
                     <thead>
                       <tr>
-                        <th className="py-2 pr-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Page Name</th>
-                        <th className="py-2 px-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Users</th>
-                        <th className="py-2 pl-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Rate</th>
+                        <th className="py-2 pr-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Instance</th>
+                        <th className="py-2 px-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Count</th>
                       </tr>
                     </thead>
                     <tbody className="bg-white">
-                      {accessMethodsAPIData.map((method) => (
-                        <tr key={method.id}>
+                      {accessMethodsData.map((method) => (
+                        <tr key={method.name}>
                           <td className="py-2 pr-2 whitespace-nowrap text-sm text-gray-900 flex items-center">
                             <span className={`h-2.5 w-2.5 rounded-full mr-2`} style={{ backgroundColor: method.color || '#CCCCCC' }}></span>
                             {method.name}
                           </td>
-                          <td className="py-2 px-2 whitespace-nowrap text-sm text-gray-500">{formatNumber(method.users)}</td>
-                          <td className="py-2 pl-2 whitespace-nowrap text-sm text-gray-500">{method.rate.toFixed(2)}%</td>
+                          <td className="py-2 px-2 whitespace-nowrap text-sm text-gray-500">{formatNumber(method.value)}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -136,9 +136,8 @@ const { activeFilters } = outletContext;
                 </div>
               </div>
             </div>
-          )}
-          {!isLoadingAccessMethods && !errorAccessMethods && (!accessMethodsAPIData || accessMethodsAPIData.length === 0) && (
-            <p className="text-center py-10 text-gray-500">No data available for access methods.</p>
+          ) : (
+             <p className="text-center py-10 text-gray-500">No data available for access methods.</p>
           )}
         </div>
 
@@ -146,25 +145,14 @@ const { activeFilters } = outletContext;
         <div className="lg:col-span-1 bg-white rounded-lg shadow">
           <div className="p-6 flex justify-between items-center">
             <h2 className="text-lg font-medium text-gray-900">TOP USERS</h2>
+            {/* Note: Trend percentage is static as we don't have the data for it */}
             <span className="text-sm font-medium text-green-600 flex items-center">
                 <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M5.293 9.707a1 1 0 010-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 01-1.414 1.414L11 7.414V15a1 1 0 11-2 0V7.414L6.707 9.707a1 1 0 01-1.414 0z" clipRule="evenodd"></path></svg>
-                3.5% Increase {/* Hardcoded */}
+                3.5% Increase
             </span>
           </div>
           <div className="px-6 pb-6">
-            {isLoadingTopUsers && <p className="text-center h-72 flex items-center justify-center text-gray-500">Loading Top Users chart...</p>}
-            {errorTopUsers && <p className="text-center h-72 flex items-center justify-center text-red-500">Error: {errorTopUsers.message}</p>}
-            {topUsersChartAPIData && (
-              <HorizontalBarChart
-                data={topUsersChartAPIData}
-                barColor="#4ade80" // Lighter green
-                aspect={1.5} // Adjust aspect
-                // xAxisLabel="Number of Workspaces"
-              />
-            )}
-            {!isLoadingTopUsers && !errorTopUsers && (!topUsersChartAPIData || topUsersChartAPIData.length === 0) && (
-                <p className="text-center h-72 flex items-center justify-center text-gray-500">No data available for Top Users chart.</p>
-            )}
+            <HorizontalBarChart data={topUsersData} barColor="#4ade80" aspect={1.5} xAxisLabel="Workspaces Created" />
           </div>
         </div>
       </div>
