@@ -148,7 +148,32 @@ export const transformStructurizrToAccessMethods = (logs: RawStructurizrLog[]): 
         color: colors[index % colors.length]
     }));
 };
+// src/utils/dataTransformer.ts
 
+// ... (all the other existing transform functions like transformStructurizrToMultiLineTrend, etc.)
+
+// --- ADD THIS MISSING FUNCTION ---
+export const transformStructurizrToTopUsers = (logs: RawStructurizrLog[], topN: number = 6): CategoricalChartData[] => {
+  if (!logs) return [];
+  const workspacesByUser: { [user: string]: number } = {};
+
+  logs.forEach(log => {
+      // Use the 'eonid' field as the user identifier for Structurizr logs
+      const user = log.eonid;
+      workspacesByUser[user] = (workspacesByUser[user] || 0) + 1;
+  });
+
+  return Object.entries(workspacesByUser)
+      .map(([name, value]) => ({
+          name,
+          value,
+      }))
+      .sort((a, b) => b.value - a.value)
+      .slice(0, topN);
+};
+// --- END OF ADDED FUNCTION ---
+
+// ... (other functions like transformToTopUsersAcrossSystems)
 // ==========================================================
 // == CONSOLIDATED TRANSFORMERS (ACROSS SYSTEMS)
 // ==========================================================
