@@ -1,11 +1,11 @@
 // src/pages/Overview.tsx
-
 import React, { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useOutletContext, Link } from 'react-router-dom';
-import { isWithinInterval, subYears } from 'date-fns';
+// CORRECTED: Import `parseISO` for safe date parsing and `isAfter`, `isBefore` for robust comparison
+import { isWithinInterval, subYears, parseISO, startOfDay, endOfDay } from 'date-fns';
 
-// Component Imports
+// Component Imports (paths are assumed correct from previous step)
 import StatsCard from '../components/dashboard/StatsCard';
 import SingleLineMetricChart from '../components/charts/SingleLineMetricChart';
 import TableComponent, { ColumnDef } from '../components/common/TableComponent';
@@ -26,21 +26,29 @@ import { getTimeframeDates, getTrendCalculationPeriods } from '../utils/dateUtil
 import { OverviewSummaryStats, RawApiLog, RawStructurizrLog, DataPoint } from '../types/analytics';
 import { UserData, StatsCardDisplayData, ActiveFilters, Trend } from '../types/common';
 
-// Helper Functions
+// --- Helper Functions ---
 const formatNumber = (num: number | undefined): string => (num || 0).toLocaleString();
+
 const calculateTrend = (current: number, previous: number): Trend => {
-  if (previous === 0) return { value: current > 0 ? 100.0 : 0, direction: current > 0 ? 'up' : 'neutral' };
+  if (previous === 0) {
+    return { value: current > 0 ? 100.0 : 0, direction: current > 0 ? 'up' : 'neutral' };
+  }
   const percentageChange = ((current - previous) / previous) * 100;
-  return { value: Math.abs(percentageChange), direction: percentageChange > 0.1 ? 'up' : percentageChange < -0.1 ? 'down' : 'neutral' };
+  return {
+    value: Math.abs(percentageChange),
+    direction: percentageChange > 0.1 ? 'up' : percentageChange < -0.1 ? 'down' : 'neutral',
+  };
 };
 
-interface PageContextType { activeFilters: ActiveFilters; }
+// --- Component Definition ---
+interface PageContextType {
+  activeFilters: ActiveFilters;
+}
 
 const Overview: React.FC = () => {
   const outletContext = useOutletContext<PageContextType | null>();
 
-  // --- CORRECTION #1: ALL HOOKS ARE CALLED UNCONDITIONALLY AT THE TOP OF THE COMPONENT ---
-  // This fixes the "Rules of Hooks" violation and the subsequent crash.
+  // --- All Hooks Called Unconditionally at the Top ---
 
   const { data: rawC4TSLogs, isLoading: isLoadingC4TS, error: errorC4TS } = useQuery<RawApiLog[], Error>({
     queryKey: ['overviewRawC4TSLogs'],
@@ -49,7 +57,7 @@ const Overview: React.FC = () => {
       const { startDate } = getTrendCalculationPeriods().previousPeriod;
       return fetchRawC4TSLogsByDate(startDate, endDate);
     },
-    staleTime: 1000 * 60 * 5,
+    staleTime: 1000 * 60 * 5, // Cache for 5 minutes
   });
 
   const { data: rawStructurizrLogs, isLoading: isLoadingStructurizr, error: errorStructurizr } = useQuery<RawStructurizrLog[], Error>({
@@ -62,26 +70,29 @@ const Overview: React.FC = () => {
     staleTime: 1000 * 60 * 5,
   });
 
-  // This single, large `useMemo` block derives all necessary data for the page.
-  // It will only re-calculate when the raw data or filters change.
+  // This single useMemo block derives all data needed by the page's components
   const pageData = useMemo(() => {
-    // It safely handles the case where data hasn't arrived yet.
-    if (!rawC4TSLogs || !rawStructurizrLogs || !outletContext) return null;
+    // Return null if the raw data isn't ready yet
+    if (!rawC4TSLogs || !rawStructurizrLogs || !outletContext) {
+      return null;
+    }
 
     const { activeFilters } = outletContext;
     const { startDate: selectedStartDate, endDate: selectedEndDate } = getTimeframeDates(activeFilters.timeframe);
     const { currentPeriod, previousPeriod } = getTrendCalculationPeriods();
     
+    // Apply user filter first
     const c4tsFilteredByUser = activeFilters.user !== 'ALL_USERS' ? rawC4TSLogs.filter(log => log.user === activeFilters.user) : rawC4TSLogs;
     const structurizrFilteredByUser = activeFilters.user !== 'ALL_USERS' ? rawStructurizrLogs.filter(log => log.eonid === activeFilters.user) : rawStructurizrLogs;
 
-    const c4tsSelected = c4tsFilteredByUser.filter(log => isWithinInterval(new Date(log.createdAt), { start: selectedStartDate, end: selectedEndDate }));
-    const structurizrSelected = structurizrFilteredByUser.filter(log => log.createdAt?.$date && isWithinInterval(new Date(log.createdAt.$date), { start: selectedStartDate, end: selectedEndDate }));
-    const c4tsCurrentTrend = c4tsFilteredByUser.filter(log => isWithinInterval(new Date(log.createdAt), currentPeriod));
-    const c4tsPreviousTrend = c4tsFilteredByUser.filter(log => isWithinInterval(new Date(log.createdAt), previousPeriod));
-    const structurizrCurrentTrend = structurizrFilteredByUser.filter(log => log.createdAt?.$date && isWithinInterval(new Date(log.createdAt.$date), currentPeriod));
-    const structurizrPreviousTrend = structurizrFilteredByUser.filter(log => log.createdAt?.$date && isWithinInterval(new Date(log.createdAt.$date), previousPeriod));
-
+    // Correctly slice data for each period using robust date parsing
+    const c4tsSelected = c4tsFilteredByUser.filter(log => { try { return isWithinInterval(parseISO(log.createdAt), { start: selectedStartDate, end: selectedEndDate }); } catch { return false; }});
+    const structurizrSelected = structurizrFilteredByUser.filter(log => { try { return log.createdAt?.$date && isWithinInterval(parseISO(log.createdAt.$date), { start: selectedStartDate, end: selectedEndDate }); } catch { return false; }});
+    const c4tsCurrentTrend = c4tsFilteredByUser.filter(log => { try { return isWithinInterval(parseISO(log.createdAt), currentPeriod); } catch { return false; }});
+    const c4tsPreviousTrend = c4tsFilteredByUser.filter(log => { try { return isWithinInterval(parseISO(log.createdAt), previousPeriod); } catch { return false; }});
+    const structurizrCurrentTrend = structurizrFilteredByUser.filter(log => { try { return log.createdAt?.$date && isWithinInterval(parseISO(log.createdAt.$date), currentPeriod); } catch { return false; }});
+    const structurizrPreviousTrend = structurizrFilteredByUser.filter(log => { try { return log.createdAt?.$date && isWithinInterval(parseISO(log.createdAt.$date), previousPeriod); } catch { return false; }});
+    
     const stats: OverviewSummaryStats = {
         totalApiHits: { value: c4tsSelected.length, trend: calculateTrend(c4tsCurrentTrend.length, c4tsPreviousTrend.length) },
         activeWorkspaces: { value: getStructurizrActiveWorkspaceCount(structurizrSelected), trend: calculateTrend(getStructurizrActiveWorkspaceCount(structurizrCurrentTrend), getStructurizrActiveWorkspaceCount(structurizrPreviousTrend)) },
@@ -104,18 +115,14 @@ const Overview: React.FC = () => {
     { header: 'Structurizr Workspaces', accessorKey: 'structurizrWorkspaces', cellRenderer: (value) => formatNumber(value as number), tdClassName: 'text-right', thClassName: 'text-right' },
   ], []);
 
-  // --- RENDER LOGIC IS NOW PLACED AFTER ALL HOOKS ---
+
+  // --- Render Logic (Placed after all hooks) ---
   const isLoading = isLoadingC4TS || isLoadingStructurizr;
   const error = errorC4TS || errorStructurizr;
 
   if (isLoading) return <div className="p-6 text-center text-gray-500 animate-pulse">Loading Overview Data...</div>;
   if (error) return <div className="p-6 text-center text-red-500">Error: {error.message}</div>;
-  
-  // CORRECTION #2: We now check if `pageData` is null before trying to render anything.
-  // This fixes the "Property 'stats' does not exist on type '{}'" error.
-  if (!pageData) {
-    return <div className="p-6 text-center text-gray-500">Processing data...</div>;
-  }
+  if (!pageData) return <div className="p-6 text-center text-gray-500 animate-pulse">Processing data...</div>;
 
   return (
     <div className="space-y-6">
@@ -143,7 +150,6 @@ const Overview: React.FC = () => {
 
       <div className="bg-white rounded-lg shadow overflow-hidden">
         <div className="px-6 py-4 flex justify-between items-center border-b border-gray-200"><h2 className="text-lg font-medium text-gray-900">Top Users Across All Systems</h2></div>
-        {/* CORRECTION #3: We provide the `getRowKey` prop to our flexible TableComponent */}
         <TableComponent
             columns={topUsersColumns}
             data={pageData.topUsersData}
