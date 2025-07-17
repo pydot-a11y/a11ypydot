@@ -162,6 +162,11 @@ const Overview: React.FC = () => {
   const isLoading = isLoadingC4TS || isLoadingStructurizr;
   const error = errorC4TS || errorStructurizr;
 
+   // --- ADD THIS DEBUGGING LOG ---
+   console.log("--- DEBUG: Data being passed to charts ---");
+   console.log("C4TS Chart Data:", pageData?.c4tsChartData);
+   console.log("Structurizr Chart Data:", pageData?.structurizrChartData);
+
   if (isLoading) return <div className="p-6 text-center text-gray-500 animate-pulse">Loading Overview Data...</div>;
   if (error) return <div className="p-6 text-center text-red-500">Error: {error.message}</div>;
   if (!pageData) return <div className="p-6 text-center text-gray-500 animate-pulse">Processing data...</div>;

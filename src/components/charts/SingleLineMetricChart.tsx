@@ -28,38 +28,13 @@ interface SingleLineMetricChartProps {
 }
 
 // Custom Tooltip for Single Line Chart
-const CustomSingleLineTooltip: React.FC<TooltipProps<ValueType, NameType> & { peakInfoProvider?: (point: DataPoint) => string | null }> = ({
-  active,
-  payload,
-  label,
-  peakInfoProvider,
-}) => {
-  if (active && payload && payload.length) {
-    const dataPoint = payload[0].payload as DataPoint; // The raw data point for this tooltip item
-    const customPeakInfo = peakInfoProvider ? peakInfoProvider(dataPoint) : null;
+// src/components/charts/SingleLineMetricChart.tsx
 
-    if (customPeakInfo) {
-      // If peakInfoProvider returns a string, display that exclusively
-      return (
-        <div className="bg-primary-600 text-white p-2 border border-gray-300 shadow-lg rounded text-xs whitespace-nowrap">
-          {customPeakInfo.split('\n').map((line, i) => <div key={i}>{line}</div>)}
-        </div>
-      );
-    }
+// ... (Your imports remain at the top)
 
-    // Default tooltip content
-    return (
-      <div className="bg-white p-2 border border-gray-300 shadow-lg rounded text-sm">
-        <p className="font-semibold">{`Date: ${label}`}</p>
-        <p style={{ color: payload[0].color }}>
-          {`${payload[0].name}: ${payload[0].value}`}
-        </p>
-      </div>
-    );
-  }
-  return null;
-};
+// --- REBUILD THE ENTIRE COMPONENT BODY ---
 
+// (CustomSingleLineTooltip component can remain the same as before)
 
 const SingleLineMetricChart: React.FC<SingleLineMetricChartProps> = ({
   data,
@@ -71,9 +46,20 @@ const SingleLineMetricChart: React.FC<SingleLineMetricChartProps> = ({
   yAxisLabel,
   peakInfoProvider,
 }) => {
+  // --- START DEBUGGING LOGS ---
+  console.log(`--- DEBUG: Inside SingleLineMetricChart for '${lineName}' ---`);
+  console.log("Received data prop:", data);
+  // --- END DEBUGGING LOGS ---
+
   if (!data || data.length === 0) {
+    // This is the message you are seeing. If the log above shows a valid array,
+    // then something is wrong with this check or the data itself.
+    console.log(`'${lineName}' chart is rendering "No data available" because the data prop is empty or undefined.`);
     return <div className="flex items-center justify-center h-full text-gray-500">No data available for chart.</div>;
   }
+
+  // If the component reaches this point, it means it thinks it has valid data.
+  console.log(`'${lineName}' chart is attempting to render with ${data.length} data points.`);
 
   return (
     <ResponsiveContainer width="100%" aspect={aspect}>
@@ -81,16 +67,16 @@ const SingleLineMetricChart: React.FC<SingleLineMetricChartProps> = ({
         data={data}
         margin={{
           top: 5,
-          right: 30, // Allow space for potential labels/tooltips
-          left: 20,  // Increased if yAxisLabel is present
-          bottom: yAxisLabel ? 25 : 5, // Increased if x-axis label present
+          right: 30,
+          left: 20,
+          bottom: yAxisLabel ? 25 : 5,
         }}
       >
         <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" />
         <XAxis
           dataKey={xAxisDataKey}
           tick={{ fontSize: 12, fill: '#666' }}
-          dy={5} // Adjust tick position
+          dy={5}
         />
         <YAxis tick={{ fontSize: 12, fill: '#666' }} dx={-5} allowDecimals={false}>
           {yAxisLabel && (
@@ -99,18 +85,18 @@ const SingleLineMetricChart: React.FC<SingleLineMetricChartProps> = ({
               angle={-90}
               position="insideLeft"
               style={{ textAnchor: 'middle', fontSize: '12px', fill: '#333' }}
-              dx={-10} // Further adjust if needed
+              dx={-10}
             />
           )}
         </YAxis>
         <Tooltip
             content={<CustomSingleLineTooltip peakInfoProvider={peakInfoProvider} />}
-            cursor={{ stroke: lineColor, strokeDasharray: '3 3' }} // Custom cursor on hover
+            cursor={{ stroke: lineColor, strokeDasharray: '3 3' }}
         />
         <Line
           type="monotone"
           dataKey={lineDataKey}
-          name={lineName} // Name for the tooltip
+          name={lineName}
           stroke={lineColor}
           strokeWidth={2}
           activeDot={{ r: 6, strokeWidth: 1, fill: lineColor, stroke: '#fff' }}
