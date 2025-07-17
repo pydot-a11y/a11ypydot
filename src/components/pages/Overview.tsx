@@ -5,12 +5,12 @@ import { useQuery } from '@tanstack/react-query';
 import { useOutletContext, Link } from 'react-router-dom';
 import { isWithinInterval, subYears } from 'date-fns';
 
-// --- CORRECTED Component Imports ---
-import StatsCard from '../components/dashboard/StatsCard'; // Corrected Path
-import SingleLineMetricChart from '../components/charts/SingleLineMetricChart'; // Corrected Path
-import TableComponent, { ColumnDef } from '../components/common/TableComponent'; // Corrected Path
+// Component Imports
+import StatsCard from '../components/dashboard/StatsCard';
+import SingleLineMetricChart from '../components/charts/SingleLineMetricChart';
+import TableComponent, { ColumnDef } from '../components/common/TableComponent';
 
-// --- CORRECTED API & Transformer Imports ---
+// API & Transformer Imports
 import { fetchRawC4TSLogsByDate, fetchRawStructurizrLogsByDate } from '../services/apiService';
 import {
   transformC4TSLogsToTimeSeries,
@@ -22,11 +22,11 @@ import {
 } from '../utils/dataTransformer';
 import { getTimeframeDates, getTrendCalculationPeriods } from '../utils/dateUtils';
 
-// --- CORRECTED Type Imports ---
+// Type Imports
 import { OverviewSummaryStats, RawApiLog, RawStructurizrLog, DataPoint } from '../types/analytics';
 import { UserData, StatsCardDisplayData, ActiveFilters, Trend } from '../types/common';
 
-// --- Helper Functions (Co-located for clarity) ---
+// Helper Functions
 const formatNumber = (num: number | undefined): string => (num || 0).toLocaleString();
 const calculateTrend = (current: number, previous: number): Trend => {
   if (previous === 0) return { value: current > 0 ? 100.0 : 0, direction: current > 0 ? 'up' : 'neutral' };
@@ -38,12 +38,9 @@ interface PageContextType { activeFilters: ActiveFilters; }
 
 const Overview: React.FC = () => {
   const outletContext = useOutletContext<PageContextType | null>();
-  if (!outletContext) {
-    return <div className="p-6 text-center text-gray-500 animate-pulse">Initializing...</div>;
-  }
-  const { activeFilters } = outletContext;
 
-  // --- HOOKS ARE CALLED UNCONDITIONALLY AT THE TOP ---
+  // --- CORRECTION #1: ALL HOOKS ARE CALLED UNCONDITIONALLY AT THE TOP OF THE COMPONENT ---
+  // This fixes the "Rules of Hooks" violation and the subsequent crash.
 
   const { data: rawC4TSLogs, isLoading: isLoadingC4TS, error: errorC4TS } = useQuery<RawApiLog[], Error>({
     queryKey: ['overviewRawC4TSLogs'],
@@ -65,9 +62,13 @@ const Overview: React.FC = () => {
     staleTime: 1000 * 60 * 5,
   });
 
-  const overviewData = useMemo(() => {
-    if (!rawC4TSLogs || !rawStructurizrLogs) return null;
+  // This single, large `useMemo` block derives all necessary data for the page.
+  // It will only re-calculate when the raw data or filters change.
+  const pageData = useMemo(() => {
+    // It safely handles the case where data hasn't arrived yet.
+    if (!rawC4TSLogs || !rawStructurizrLogs || !outletContext) return null;
 
+    const { activeFilters } = outletContext;
     const { startDate: selectedStartDate, endDate: selectedEndDate } = getTimeframeDates(activeFilters.timeframe);
     const { currentPeriod, previousPeriod } = getTrendCalculationPeriods();
     
@@ -94,7 +95,7 @@ const Overview: React.FC = () => {
         structurizrChartData: transformStructurizrToCreationTrend(structurizrSelected),
         topUsersData: transformToTopUsersAcrossSystems(c4tsSelected, structurizrSelected),
     };
-  }, [rawC4TSLogs, rawStructurizrLogs, activeFilters]);
+  }, [rawC4TSLogs, rawStructurizrLogs, outletContext]);
 
   const topUsersColumns: ColumnDef<UserData>[] = useMemo(() => [
     { header: 'User', accessorKey: 'name', tdClassName: 'font-medium text-gray-900' },
@@ -103,49 +104,49 @@ const Overview: React.FC = () => {
     { header: 'Structurizr Workspaces', accessorKey: 'structurizrWorkspaces', cellRenderer: (value) => formatNumber(value as number), tdClassName: 'text-right', thClassName: 'text-right' },
   ], []);
 
-  // --- RENDER LOGIC ---
+  // --- RENDER LOGIC IS NOW PLACED AFTER ALL HOOKS ---
   const isLoading = isLoadingC4TS || isLoadingStructurizr;
   const error = errorC4TS || errorStructurizr;
 
   if (isLoading) return <div className="p-6 text-center text-gray-500 animate-pulse">Loading Overview Data...</div>;
   if (error) return <div className="p-6 text-center text-red-500">Error: {error.message}</div>;
+  
+  // CORRECTION #2: We now check if `pageData` is null before trying to render anything.
+  // This fixes the "Property 'stats' does not exist on type '{}'" error.
+  if (!pageData) {
+    return <div className="p-6 text-center text-gray-500">Processing data...</div>;
+  }
 
   return (
     <div className="space-y-6">
-      {/* CORRECTED: Check if overviewData and overviewData.stats exist before rendering */}
-      {overviewData?.stats && (
-          <StatsCard items={[
-                { title: 'Total API Hits (C4TS)', value: formatNumber(overviewData.stats.totalApiHits.value), trend: overviewData.stats.totalApiHits.trend },
-                { title: 'Active Workspaces (Structurizr)', value: formatNumber(overviewData.stats.activeWorkspaces.value), trend: overviewData.stats.activeWorkspaces.trend },
-                { title: 'Total Users (C4TS)', value: formatNumber(overviewData.stats.totalC4TSUsers.value), trend: overviewData.stats.totalC4TSUsers.trend },
-                { title: 'Total Users (Structurizr)', value: formatNumber(overviewData.stats.totalStructurizrUsers.value), trend: overviewData.stats.totalStructurizrUsers.trend },
-            ]} />
-      )}
+      <StatsCard items={[
+            { title: 'Total API Hits (C4TS)', value: formatNumber(pageData.stats.totalApiHits.value), trend: pageData.stats.totalApiHits.trend },
+            { title: 'Active Workspaces (Structurizr)', value: formatNumber(pageData.stats.activeWorkspaces.value), trend: pageData.stats.activeWorkspaces.trend },
+            { title: 'Total Users (C4TS)', value: formatNumber(pageData.stats.totalC4TSUsers.value), trend: pageData.stats.totalC4TSUsers.trend },
+            { title: 'Total Users (Structurizr)', value: formatNumber(pageData.stats.totalStructurizrUsers.value), trend: pageData.stats.totalStructurizrUsers.trend },
+        ]} />
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="bg-white rounded-lg shadow">
             <div className="p-6 flex justify-between items-center"><h2 className="text-lg font-medium text-gray-900">C4TS Analytics</h2><Link to="/c4ts" className="text-sm font-medium text-primary-600 hover:text-primary-500">View Details →</Link></div>
             <div className="px-6 pb-6">
-                {/* CORRECTED: Pass overviewData.c4tsChartData or an empty array */}
-                <SingleLineMetricChart data={overviewData?.c4tsChartData || []} lineName="API Hits" lineColor="#3b82f6" yAxisLabel="Count" aspect={2.5} />
+                <SingleLineMetricChart data={pageData.c4tsChartData} lineName="API Hits" lineColor="#3b82f6" yAxisLabel="Count" aspect={2.5} />
             </div>
         </div>
         <div className="bg-white rounded-lg shadow">
             <div className="p-6 flex justify-between items-center"><h2 className="text-lg font-medium text-gray-900">Structurizr Analytics</h2><Link to="/structurizr" className="text-sm font-medium text-primary-600 hover:text-primary-500">View Details →</Link></div>
             <div className="px-6 pb-6">
-                {/* CORRECTED: Pass overviewData.structurizrChartData or an empty array */}
-                <SingleLineMetricChart data={overviewData?.structurizrChartData || []} lineName="Workspaces Created" lineColor="#10b981" yAxisLabel="Count" aspect={2.5} />
+                <SingleLineMetricChart data={pageData.structurizrChartData} lineName="Workspaces Created" lineColor="#10b981" yAxisLabel="Count" aspect={2.5} />
             </div>
         </div>
       </div>
 
       <div className="bg-white rounded-lg shadow overflow-hidden">
         <div className="px-6 py-4 flex justify-between items-center border-b border-gray-200"><h2 className="text-lg font-medium text-gray-900">Top Users Across All Systems</h2></div>
-        {/* CORRECTED: Pass overviewData.topUsersData or an empty array */}
-        {/* CORRECTED: Provide the getRowKey prop to TableComponent */}
+        {/* CORRECTION #3: We provide the `getRowKey` prop to our flexible TableComponent */}
         <TableComponent
             columns={topUsersColumns}
-            data={overviewData?.topUsersData || []}
+            data={pageData.topUsersData}
             getRowKey="id"
             noDataMessage="No user data available."
         />
