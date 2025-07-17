@@ -1,22 +1,33 @@
 // src/components/common/TableComponent.tsx
+
 import React from 'react';
 
-// T represents the type of a single row data object
-// K represents the keys of T
+/**
+ * Defines the structure for a single column in the table.
+ * @template T The type of the data object for each row.
+ */
 export interface ColumnDef<T> {
-  header: string; // Text for the table header
-  accessorKey?: keyof T; // Key to access data in the row object (if simple access)
-  accessorFn?: (row: T) => string | number | React.ReactNode; // Function to derive cell data
-  cellRenderer?: (value: any, row: T) => React.ReactNode; // Custom cell rendering
-  headerTooltip?: string; // Tooltip for the header
-  cellTooltipAccessorFn?: (row: T) => string | undefined; // Function to get tooltip for a cell
-  thClassName?: string; // Optional class for <th>
-  tdClassName?: string; // Optional class for <td>
+  header: string;
+  accessorKey?: keyof T;
+  accessorFn?: (row: T) => string | number | React.ReactNode;
+  cellRenderer?: (value: any, row: T) => React.ReactNode;
+  headerTooltip?: string;
+  cellTooltipAccessorFn?: (row: T) => string | undefined;
+  thClassName?: string;
+  tdClassName?: string;
 }
 
+/**
+ * Props for the generic TableComponent.
+ * @template T The type of the data object for each row.
+ */
 interface TableComponentProps<T> {
   data: T[];
   columns: ColumnDef<T>[];
+  // --- THIS IS THE KEY CHANGE ---
+  // A new, required prop to tell the component how to get a unique key for each row.
+  // This can be a property key (like 'id' or 'name') or a function for complex keys.
+  getRowKey: keyof T | ((row: T) => string | number);
   isLoading?: boolean;
   error?: Error | null;
   noDataMessage?: string;
@@ -26,9 +37,15 @@ interface TableComponentProps<T> {
   trClassName?: string;
 }
 
-const TableComponent = <T extends { id?: string | number }>({ // Assume row data has an id for key
+/**
+ * A generic, reusable table component for displaying data arrays.
+ * It handles loading, error, and empty states.
+ * @template T A constraint to ensure the data passed is an array of objects.
+ */
+const TableComponent = <T extends object>({
   data,
   columns,
+  getRowKey, // Destructure the new required prop
   isLoading = false,
   error = null,
   noDataMessage = "No data available.",
@@ -39,7 +56,8 @@ const TableComponent = <T extends { id?: string | number }>({ // Assume row data
 }: TableComponentProps<T>) => {
 
   if (isLoading) {
-    return <div className="p-6 text-center text-gray-500">Loading table data...</div>;
+    // You can use the animate-pulse class here too for consistency
+    return <div className="p-6 text-center text-gray-500 animate-pulse">Loading table data...</div>;
   }
 
   if (error) {
@@ -68,36 +86,42 @@ const TableComponent = <T extends { id?: string | number }>({ // Assume row data
           </tr>
         </thead>
         <tbody className={tbodyClassName}>
-          {data.map((row, rowIndex) => (
-            <tr key={(row.id || `row-${rowIndex}`) as React.Key} className={trClassName}>
-              {columns.map((col, colIndex) => {
-                let cellValue: any;
-                if (col.accessorFn) {
-                  cellValue = col.accessorFn(row);
-                } else if (col.accessorKey) {
-                  cellValue = row[col.accessorKey];
-                }
+          {data.map((row, rowIndex) => {
+            // Use the new getRowKey prop to generate a stable, unique key for each row.
+            // This makes the component much more flexible than forcing an 'id' property.
+            const key = typeof getRowKey === 'function'
+              ? getRowKey(row)
+              : (row[getRowKey as keyof T] as React.Key);
 
-                const displayValue = col.cellRenderer
-                  ? col.cellRenderer(cellValue, row)
-                  : (typeof cellValue === 'number' ? cellValue.toLocaleString() : cellValue);
+            return (
+              <tr key={key || rowIndex} className={trClassName}>
+                {columns.map((col, colIndex) => {
+                  let cellValue: any;
+                  if (col.accessorFn) {
+                    cellValue = col.accessorFn(row);
+                  } else if (col.accessorKey) {
+                    cellValue = row[col.accessorKey];
+                  }
 
-                const cellTooltip = col.cellTooltipAccessorFn ? col.cellTooltipAccessorFn(row) : undefined;
+                  const displayValue = col.cellRenderer
+                    ? col.cellRenderer(cellValue, row)
+                    : (typeof cellValue === 'number' ? cellValue.toLocaleString() : cellValue);
+                  
+                  const cellTooltip = col.cellTooltipAccessorFn ? col.cellTooltipAccessorFn(row) : undefined;
 
-                return (
-                  <td
-                    key={`${col.header}-${colIndex}-cell`}
-                    className={`px-6 py-4 whitespace-nowrap text-sm ${
-                        typeof cellValue === 'number' && !col.cellRenderer ? 'text-gray-500' : 'text-gray-900'
-                    } ${col.tdClassName || ''}`}
-                    title={cellTooltip}
-                  >
-                    {displayValue}
-                  </td>
-                );
-              })}
-            </tr>
-          ))}
+                  return (
+                    <td
+                      key={`${String(key)}-${colIndex}`}
+                      className={`px-6 py-4 whitespace-nowrap text-sm text-gray-900 ${col.tdClassName || ''}`}
+                      title={cellTooltip}
+                    >
+                      {displayValue}
+                    </td>
+                  );
+                })}
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>
