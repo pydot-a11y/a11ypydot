@@ -26,6 +26,8 @@ import { getTimeframeDates, getTrendCalculationPeriods } from '../utils/dateUtil
 import { OverviewSummaryStats, RawApiLog, RawStructurizrLog, DataPoint } from '../types/analytics';
 import { UserData, StatsCardDisplayData, ActiveFilters, Trend } from '../types/common';
 
+// src/pages/Overview.tsx
+
 // --- Helper Functions ---
 const formatNumber = (num: number | undefined): string => (num || 0).toLocaleString();
 
@@ -57,7 +59,7 @@ const Overview: React.FC = () => {
       const { startDate } = getTrendCalculationPeriods().previousPeriod;
       return fetchRawC4TSLogsByDate(startDate, endDate);
     },
-    staleTime: 1000 * 60 * 5, // Cache for 5 minutes
+    staleTime: 1000 * 60 * 5,
   });
 
   const { data: rawStructurizrLogs, isLoading: isLoadingStructurizr, error: errorStructurizr } = useQuery<RawStructurizrLog[], Error>({
@@ -71,22 +73,16 @@ const Overview: React.FC = () => {
   });
 
   // This single useMemo block derives all data needed by the page's components
-// src/pages/Overview.tsx
-
-  // ... (Your useQuery and other hooks remain above this)
-
-  // --- THIS IS THE DEBUGGING BLOCK ---
-  // We will replace the entire pageData useMemo hook with this one.
   const pageData = useMemo(() => {
     // --- Step 1: Log the raw inputs ---
-    console.log("==================== DEBUGGING useMemo ====================");
+    console.log("==================== DEBUGGING useMemo (Overview) ====================");
     console.log("Raw C4TS Logs available:", !!rawC4TSLogs, "Count:", rawC4TSLogs?.length);
     console.log("Raw Structurizr Logs available:", !!rawStructurizrLogs, "Count:", rawStructurizrLogs?.length);
     console.log("Outlet Context available:", !!outletContext);
 
     if (!rawC4TSLogs || !rawStructurizrLogs || !outletContext) {
       console.log(">>> Exiting early: Raw data or context not ready.");
-      console.log("==========================================================");
+      console.log("===============================================================");
       return null;
     }
     
@@ -96,8 +92,9 @@ const Overview: React.FC = () => {
     // --- Step 2: Define date ranges and log them ---
     const { startDate: selectedStartDate, endDate: selectedEndDate } = getTimeframeDates(activeFilters.timeframe);
     const { currentPeriod, previousPeriod } = getTrendCalculationPeriods();
-    console.log(`Selected UI Timeframe: ${formatDateForApi(selectedStartDate)} to ${formatDateForApi(selectedEndDate)}`);
-    console.log(`Current Trend Period: ${formatDateForApi(currentPeriod.start)} to ${formatDateForApi(currentPeriod.end)}`);
+    console.log(`UI Timeframe (selected): ${formatDateForApi(selectedStartDate)} to ${formatDateForApi(selectedEndDate)}`);
+    console.log(`Trend Period (current):  ${formatDateForApi(currentPeriod.start)} to ${formatDateForApi(currentPeriod.end)}`);
+    console.log(`Trend Period (previous): ${formatDateForApi(previousPeriod.start)} to ${formatDateForApi(previousPeriod.end)}`);
 
     // --- Step 3: Filter by User and log the results ---
     const c4tsFilteredByUser = activeFilters.user !== 'ALL_USERS' ? rawC4TSLogs.filter(log => log.user === activeFilters.user) : rawC4TSLogs;
@@ -105,25 +102,33 @@ const Overview: React.FC = () => {
     console.log(`C4TS Logs after user filter ('${activeFilters.user}'):`, c4tsFilteredByUser.length);
     console.log(`Structurizr Logs after user filter ('${activeFilters.user}'):`, structurizrFilteredByUser.length);
 
-    // --- Step 4: Slice by Date and log the results ---
-    const c4tsSelected = c4tsFilteredByUser.filter(log => { try { return isWithinInterval(parseISO(log.createdAt), { start: selectedStartDate, end: selectedEndDate }); } catch { return false; }});
-    const structurizrSelected = structurizrFilteredByUser.filter(log => { try { return log.createdAt?.$date && isWithinInterval(parseISO(log.createdAt.$date), { start: selectedStartDate, end: selectedEndDate }); } catch { return false; }});
-    console.log("C4TS Logs for selected timeframe:", c4tsSelected.length);
+    // --- Step 4: Slice by Date using robust helper and log the results ---
+    const isWithinDayInterval = (dateString: string, interval: { start: Date, end: Date }): boolean => {
+        try {
+            const date = startOfDay(parseISO(dateString));
+            const start = startOfDay(interval.start);
+            const end = endOfDay(interval.end);
+            return date >= start && date <= end;
+        } catch { return false; }
+    };
+
+    const c4tsSelected = c4tsFilteredByUser.filter(log => isWithinDayInterval(log.createdAt, { start: selectedStartDate, end: selectedEndDate }));
+    const structurizrSelected = structurizrFilteredByUser.filter(log => log.createdAt?.$date && isWithinDayInterval(log.createdAt.$date, { start: selectedStartDate, end: selectedEndDate }));
+    console.log("C4TS Logs for selected timeframe:", c4tsSelected.length, "(Should be > 0)");
     console.log("Structurizr Logs for selected timeframe:", structurizrSelected.length);
 
-    const c4tsCurrentTrend = c4tsFilteredByUser.filter(log => { try { return isWithinInterval(parseISO(log.createdAt), currentPeriod); } catch { return false; }});
-    const c4tsPreviousTrend = c4tsFilteredByUser.filter(log => { try { return isWithinInterval(parseISO(log.createdAt), previousPeriod); } catch { return false; }});
-    const structurizrCurrentTrend = structurizrFilteredByUser.filter(log => { try { return log.createdAt?.$date && isWithinInterval(parseISO(log.createdAt.$date), currentPeriod); } catch { return false; }});
-    const structurizrPreviousTrend = structurizrFilteredByUser.filter(log => { try { return log.createdAt?.$date && isWithinInterval(parseISO(log.createdAt.$date), previousPeriod); } catch { return false; }});
-    
-    // --- Step 5: Calculate final stats and log them ---
+    const c4tsCurrentTrend = c4tsFilteredByUser.filter(log => isWithinDayInterval(log.createdAt, currentPeriod));
+    const c4tsPreviousTrend = c4tsFilteredByUser.filter(log => isWithinDayInterval(log.createdAt, previousPeriod));
+    const structurizrCurrentTrend = structurizrFilteredByUser.filter(log => log.createdAt?.$date && isWithinDayInterval(log.createdAt.$date, currentPeriod));
+    const structurizrPreviousTrend = structurizrFilteredByUser.filter(log => log.createdAt?.$date && isWithinDayInterval(log.createdAt.$date, previousPeriod));
+
+    // --- Step 5: Calculate final stats ---
     const stats: OverviewSummaryStats = {
         totalApiHits: { value: c4tsSelected.length, trend: calculateTrend(c4tsCurrentTrend.length, c4tsPreviousTrend.length) },
         activeWorkspaces: { value: getStructurizrActiveWorkspaceCount(structurizrSelected), trend: calculateTrend(getStructurizrActiveWorkspaceCount(structurizrCurrentTrend), getStructurizrActiveWorkspaceCount(structurizrPreviousTrend)) },
         totalC4TSUsers: { value: extractC4TSDistinctUsers(c4tsSelected).size, trend: calculateTrend(extractC4TSDistinctUsers(c4tsCurrentTrend).size, extractC4TSDistinctUsers(c4tsPreviousTrend).size) },
         totalStructurizrUsers: { value: extractStructurizrDistinctUsers(structurizrSelected).size, trend: calculateTrend(extractStructurizrDistinctUsers(structurizrCurrentTrend).size, extractStructurizrDistinctUsers(structurizrPreviousTrend).size) },
     };
-    console.log("Final Calculated Stats:", stats);
     
     // --- Step 6: Transform data for charts and log the results ---
     const c4tsChartData = transformC4TSLogsToTimeSeries(c4tsSelected);
@@ -140,7 +145,7 @@ const Overview: React.FC = () => {
     };
     
     console.log(">>> Returning final data object:", finalData);
-    console.log("==========================================================");
+    console.log("===============================================================");
     
     return finalData;
   }, [rawC4TSLogs, rawStructurizrLogs, outletContext]);
