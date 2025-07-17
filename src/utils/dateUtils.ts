@@ -1,45 +1,42 @@
-// src/utils/dateUtils.ts (Full Rebuilt Code)
+// src/utils/dateUtils.ts (Full Rebuilt Code - Corrected)
 import { subDays, subMonths, subYears, format, startOfToday, endOfToday } from 'date-fns';
-import { TimeframeId } from '../types/common'; // Adjust path if needed
+import { TimeframeId } from '../types/common';
 
 /**
- * Formats a Date object into the "MM-dd-yyyy" format required by your API
+ * Formats a Date object into the "dd-MM-yyyy" format required by your API
  */
 export const formatDateForApi = (date: Date): string => {
-  return format(date, 'MM-dd-yyyy');
+  return format(date, 'dd-MM-yyyy');
 };
 
 /**
  * Calculates start and end dates based on the timeframe ID from our filters
  */
 export const getTimeframeDates = (timeframe: TimeframeId): { startDate: Date; endDate: Date } => {
-  const endDate = endOfToday(); // Use end of today for all calculations
+  const endDate = endOfToday();
 
   switch (timeframe) {
     case 'day':
-      // Last 24 hours from now is more accurate than subbing 1 day
       return { startDate: subDays(endDate, 1), endDate };
     case 'week':
       return { startDate: subDays(endDate, 7), endDate };
     case 'month':
       return { startDate: subMonths(endDate, 1), endDate };
     case 'quarter':
-      // This should be the last 90 days
       return { startDate: subDays(endDate, 90), endDate };
     case 'year':
       return { startDate: subYears(endDate, 1), endDate };
     case 'all-time':
     default:
-      // A 5-year range for 'all-time' is a reasonable default
-      return { startDate: subYears(endDate, 5), endDate };
+      return { startDate: subYears(endDate, 3), endDate }; // Default to 3 years as requested
   }
 };
 
 /**
- * NEW: Calculates the date ranges for the current 3-month period and the previous 3-month period.
- * This is used for the trend calculation.
+ * Calculates the date ranges for the current 3-month period and the previous 3-month period.
+ * CORRECTED: Returns objects with 'start' and 'end' properties to match date-fns's Interval type.
  */
-export const getTrendCalculationPeriods = (): { currentPeriod: { startDate: Date; endDate: Date }; previousPeriod: { startDate: Date; endDate: Date } } => {
+export const getTrendCalculationPeriods = (): { currentPeriod: { start: Date; end: Date }; previousPeriod: { start: Date; end: Date } } => {
   const now = new Date();
   
   // Current period is the last 3 months
@@ -51,7 +48,15 @@ export const getTrendCalculationPeriods = (): { currentPeriod: { startDate: Date
   const previousPeriodStartDate = subMonths(previousPeriodEndDate, 3);
   
   return {
-    currentPeriod: { startDate: currentPeriodStartDate, endDate: currentPeriodEndDate },
-    previousPeriod: { startDate: previousPeriodStartDate, endDate: previousPeriodEndDate }
+    // --- START OF FIX ---
+    currentPeriod: {
+        start: currentPeriodStartDate,
+        end: currentPeriodEndDate,
+    },
+    previousPeriod: {
+        start: previousPeriodStartDate,
+        end: previousPeriodEndDate,
+    }
+    // --- END OF FIX ---
   };
 };
