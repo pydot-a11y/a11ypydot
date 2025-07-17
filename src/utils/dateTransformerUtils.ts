@@ -9,23 +9,32 @@ import { UserData } from '../types/common';
 // ==========================================================
 
 export const transformC4TSLogsToTimeSeries = (logs: RawApiLog[]): DataPoint[] => {
-  if (!logs) return [];
+  if (!logs || logs.length === 0) return [];
+
   const hitsByDay: { [date: string]: number } = {};
   logs.forEach(log => {
     try {
       const day = format(startOfDay(new Date(log.createdAt)), 'yyyy-MM-dd');
       hitsByDay[day] = (hitsByDay[day] || 0) + 1;
-    } catch (e) {
-      console.warn('Invalid date format in C4TS log:', log.createdAt);
-    }
+    } catch (e) { /* ignore invalid dates */ }
   });
 
-  return Object.entries(hitsByDay)
-    .map(([date, value]) => ({
-      date: format(new Date(date), 'MMM d'),
-      value,
-    }))
-    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+  // Get the date range from the data we have
+  const allDates = Object.keys(hitsByDay).map(d => new Date(d));
+  if (allDates.length === 0) return [];
+  const dateInterval = eachDayOfInterval({
+    start: new Date(Math.min(...allDates.map(d => d.getTime()))),
+    end: new Date(Math.max(...allDates.map(d => d.getTime()))),
+  });
+
+  // Create a continuous data set, filling gaps with 0
+  return dateInterval.map(date => {
+    const dayKey = format(date, 'yyyy-MM-dd');
+    return {
+      date: format(date, 'MMM d'),
+      value: hitsByDay[dayKey] || 0, // Use the count or default to 0
+    };
+  });
 };
 
 export const transformC4TSLogsToTopUsers = (logs: RawApiLog[], topN: number = 6): CategoricalChartData[] => {
@@ -72,26 +81,32 @@ export const extractStructurizrDistinctUsers = (logs: RawStructurizrLog[]): Set<
 
 // --- THIS IS THE MISSING FUNCTION ---
 export const transformStructurizrToCreationTrend = (logs: RawStructurizrLog[]): DataPoint[] => {
-    if (!logs) return [];
-    const createdByDay: { [date: string]: number } = {};
+  if (!logs || logs.length === 0) return [];
+  const createdByDay: { [date: string]: number } = {};
 
-    logs.forEach(log => {
-        if (log.createdAt?.$date) {
-            try {
-                const day = format(startOfDay(new Date(log.createdAt.$date)), 'yyyy-MM-dd');
-                createdByDay[day] = (createdByDay[day] || 0) + 1;
-            } catch (e) {
-                console.warn('Invalid date format in Structurizr log:', log.createdAt);
-            }
-        }
-    });
+  logs.forEach(log => {
+    if (log.createdAt?.$date) {
+      try {
+        const day = format(startOfDay(new Date(log.createdAt.$date)), 'yyyy-MM-dd');
+        createdByDay[day] = (createdByDay[day] || 0) + 1;
+      } catch (e) { /* ignore invalid dates */ }
+    }
+  });
 
-    return Object.entries(createdByDay)
-        .map(([date, value]) => ({
-            date: format(new Date(date), 'MMM d'),
-            value,
-        }))
-        .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+  const allDates = Object.keys(createdByDay).map(d => new Date(d));
+  if (allDates.length === 0) return [];
+  const dateInterval = eachDayOfInterval({
+    start: new Date(Math.min(...allDates.map(d => d.getTime()))),
+    end: new Date(Math.max(...allDates.map(d => d.getTime()))),
+  });
+
+  return dateInterval.map(date => {
+    const dayKey = format(date, 'yyyy-MM-dd');
+    return {
+      date: format(date, 'MMM d'),
+      value: createdByDay[dayKey] || 0,
+    };
+  });
 };
 // --- END OF MISSING FUNCTION ---
 
