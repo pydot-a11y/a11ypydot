@@ -228,3 +228,129 @@ export const transformToTopUsersAcrossSystems = (c4tsLogs: RawApiLog[], structur
         .sort((a, b) => ((b.c4tsApiHits || 0) + (b.structurizrWorkspaces || 0)) - ((a.c4tsApiHits || 0) + (a.structurizrWorkspaces || 0)))
         .slice(0, 5);
 };
+
+
+// src/utils/dataTransformer.ts
+
+// --- IMPORTS (These will be at the top of the file) ---
+// import { format, eachDayOfInterval, startOfDay, parseISO } from 'date-fns';
+// import { RawApiLog, RawStructurizrLog, DataPoint, CategoricalChartData, ApiEndpointData, MultiLineDataPoint } from '../types/analytics';
+// import { UserData } from '../types/common';
+
+
+// ==========================================================
+// == C4TS TRANSFORMERS (Corrected Date Field)
+// ==========================================================
+
+export const transformC4TSLogsToTimeSeries = (logs: RawApiLog[]): DataPoint[] => {
+  if (!logs || logs.length === 0) return [];
+  const hitsByDay: { [date: string]: number } = {};
+
+  logs.forEach(log => {
+    // CORRECTED: We check for 'createdAt' (capital A) as defined in the type,
+    // but also for 'created_at' as a fallback, making it robust.
+    const dateString = log.createdAt || (log as any).created_at;
+    if (dateString) {
+      try {
+        const day = format(startOfDay(parseISO(dateString)), 'yyyy-MM-dd');
+        hitsByDay[day] = (hitsByDay[day] || 0) + 1;
+      } catch (e) { /* Safely ignore invalid date strings */ }
+    }
+  });
+
+  if (Object.keys(hitsByDay).length === 0) return [];
+
+  const allDates = Object.keys(hitsByDay).map(d => new Date(d));
+  const dateInterval = eachDayOfInterval({
+    start: new Date(Math.min(...allDates.map(d => d.getTime()))),
+    end: new Date(Math.max(...allDates.map(d => d.getTime()))),
+  });
+
+  return dateInterval.map(date => ({
+    date: format(date, 'MMM d'),
+    value: hitsByDay[format(date, 'yyyy-MM-dd')] || 0,
+  }));
+};
+
+// ... (transformC4TSLogsToTopUsers, transformC4TSLogsToTopEndpoints, extractC4TSDistinctUsers remain the same)
+
+
+// ==========================================================
+// == STRUCTURIZR TRANSFORMERS (Corrected Date Field)
+// ==========================================================
+
+// ... (getStructurizrActiveWorkspaceCount, extractStructurizrDistinctUsers remain the same)
+
+export const transformStructurizrToCreationTrend = (logs: RawStructurizrLog[]): DataPoint[] => {
+  if (!logs || logs.length === 0) return [];
+  const createdByDay: { [date: string]: number } = {};
+
+  logs.forEach(log => {
+    // CORRECTED: Directly and safely access the 'created_at' field which you confirmed works.
+    const dateString = (log as any).created_at;
+    if (dateString) {
+      try {
+        const day = format(startOfDay(parseISO(dateString)), 'yyyy-MM-dd');
+        createdByDay[day] = (createdByDay[day] || 0) + 1;
+      } catch (e) { /* Safely ignore */ }
+    }
+  });
+  
+  if (Object.keys(createdByDay).length === 0) return [];
+
+  const allDates = Object.keys(createdByDay).map(d => new Date(d));
+  const dateInterval = eachDayOfInterval({
+    start: new Date(Math.min(...allDates.map(d => d.getTime()))),
+    end: new Date(Math.max(...allDates.map(d => d.getTime()))),
+  });
+
+  return dateInterval.map(date => ({
+    date: format(date, 'MMM d'),
+    value: createdByDay[format(date, 'yyyy-MM-dd')] || 0,
+  }));
+};
+
+export const transformStructurizrToMultiLineTrend = (logs: RawStructurizrLog[]): MultiLineDataPoint[] => {
+  if (!logs || logs.length === 0) return [];
+  const dailyActivity: { [date: string]: { created: number; deleted: number; } } = {};
+
+  logs.forEach(log => {
+    // CORRECTED: Use the simple and reliable 'created_at' field here as well.
+    const dateString = (log as any).created_at;
+    if (dateString) {
+      try {
+        const day = format(startOfDay(parseISO(dateString)), 'yyyy-MM-dd');
+        if (!dailyActivity[day]) {
+          dailyActivity[day] = { created: 0, deleted: 0 };
+        }
+        dailyActivity[day].created++;
+        if (log.deleted === true) {
+          dailyActivity[day].deleted++;
+        }
+      } catch (e) { /* Safely ignore */ }
+    }
+  });
+
+  const allDates = Object.keys(dailyActivity).map(d => new Date(d));
+  if (allDates.length === 0) return [];
+  const dateInterval = eachDayOfInterval({
+    start: new Date(Math.min(...allDates.map(d => d.getTime()))),
+    end: new Date(Math.max(...allDates.map(d => d.getTime()))),
+  });
+
+  let activeCount = 0;
+  return dateInterval.map(date => {
+    const dayKey = format(date, 'yyyy-MM-dd');
+    const activity = dailyActivity[dayKey] || { created: 0, deleted: 0 };
+    activeCount += (activity.created - activity.deleted);
+    // Use lowercase keys to match the chart component's expectations
+    return {
+      date: format(date, 'MMM d'),
+      created: activity.created,
+      deleted: activity.deleted,
+      active: activeCount,
+    };
+  });
+};
+
+// ... (transformStructurizrToAccessMethods and Consolidated transformers remain the same)
