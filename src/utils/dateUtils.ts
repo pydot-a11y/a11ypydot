@@ -1,6 +1,6 @@
 // src/utils/dateUtils.ts
 
-import { subDays, subMonths, subYears, format, startOfToday, endOfToday, startOfYear, endOfYear } from 'date-fns';
+import { subDays, subMonths, subYears, format, startOfToday, endOfToday, differenceInDays, addYears } from 'date-fns';
 import { TimeframeId } from '../types/common';
 
 /**
@@ -12,59 +12,31 @@ export const formatDateForApi = (date: Date): string => {
 
 /**
  * Calculates start and end dates based on the timeframe ID from our filters.
- * This is now the single source of truth for date ranges.
  */
 export const getTimeframeDates = (timeframe: TimeframeId): { startDate: Date; endDate: Date } => {
   const endDate = endOfToday();
-
   switch (timeframe) {
-    case 'day':
-      return { startDate: subDays(endDate, 1), endDate };
-    case 'week':
-      return { startDate: subDays(endDate, 7), endDate };
-    case 'month':
-      return { startDate: subMonths(endDate, 1), endDate };
-    case 'quarter':
-      return { startDate: subDays(endDate, 90), endDate };
-    case 'year':
-      return { startDate: subYears(endDate, 1), endDate };
+    case 'day': return { startDate: subDays(endDate, 1), endDate };
+    case 'week': return { startDate: subDays(endDate, 7), endDate };
+    case 'month': return { startDate: subMonths(endDate, 1), endDate };
+    case 'quarter': return { startDate: subDays(endDate, 90), endDate };
+    case 'year': return { startDate: subYears(endDate, 1), endDate };
     case 'all-time':
     default:
-      // --- START OF FIX ---
-      // For 'all-time', we now use a very large range to guarantee all dev data is included.
-      // A start date of the year 1970 and an end date 10 years in the future.
-      return {
-        startDate: new Date('1970-01-01'),
-        endDate: addYears(new Date(), 10),
-      };
-      // --- END OF FIX ---
+      // Use a very large, fixed range for 'all-time' to ensure all data is captured.
+      return { startDate: new Date('1970-01-01'), endDate: addYears(new Date(), 10) };
   }
 };
 
 /**
- * Calculates the date ranges for the current 3-month period and the previous 3-month period
- * for trend calculations.
+ * NEW, SMARTER FUNCTION:
+ * Given a date range, calculates the immediately preceding date range of the same duration.
+ * @param currentPeriod - An object with { start: Date, end: Date }.
+ * @returns A new object with the preceding { start: Date, end: Date }.
  */
-export const getTrendCalculationPeriods = (): { currentPeriod: { start: Date; end: Date }; previousPeriod: { start: Date; end: Date } } => {
-  const now = new Date();
-  
-  const currentPeriodEndDate = endOfToday();
-  const currentPeriodStartDate = subMonths(now, 3);
-  
-  const previousPeriodEndDate = subDays(currentPeriodStartDate, 1);
-  const previousPeriodStartDate = subMonths(previousPeriodEndDate, 3);
-  
-  return {
-    currentPeriod: {
-        start: currentPeriodStartDate,
-        end: currentPeriodEndDate,
-    },
-    previousPeriod: {
-        start: previousPeriodStartDate,
-        end: previousPeriodEndDate,
-    }
-  };
+export const getPrecedingPeriod = (currentPeriod: { start: Date; end: Date }): { start: Date; end: Date } => {
+    const durationInDays = differenceInDays(currentPeriod.end, currentPeriod.start);
+    const end = subDays(currentPeriod.start, 1);
+    const start = subDays(end, durationInDays);
+    return { start, end };
 };
-
-// We need to add this import at the top
-// import { addYears } from 'date-fns';
