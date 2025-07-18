@@ -9,7 +9,8 @@ export interface RawApiLog {
   user: string; // This is the "eonid"
   uri: string;
   url: string;
-  createdAt: string; // ISO Date String, e.g., "2025-02-15T10:00:00.000Z"
+  createdAt?: string; 
+  created_at?: string;
 }
 
 // Raw log format from the Structurizr endpoint

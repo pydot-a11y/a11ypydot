@@ -1,69 +1,57 @@
-// src/utils/dataTransformer.ts
 
-import { format, eachDayOfInterval, startOfDay } from 'date-fns';
-import { RawApiLog, RawStructurizrLog, DataPoint, CategoricalChartData, ApiEndpointData, MultiLineDataPoint } from '../types/analytics';
 import { UserData } from '../types/common';
 
-// ==========================================================
-// == C4TS TRANSFORMERS
-// ==========================================================
+import { format, eachDayOfInterval, startOfDay, parseISO } from 'date-fns';
+import { RawApiLog, RawStructurizrLog, DataPoint, CategoricalChartData, ApiEndpointData, MultiLineDataPoint } from '../types/analytics';
 
-// --- REBUILD THIS FUNCTION WITH DETAILED LOGGING ---
+// --- NEW: A Universal Date Getter Helper ---
+// This function knows how to find the date string regardless of the log type.
+const getLogDateString = (log: RawApiLog | RawStructurizrLog): string | undefined => {
+  // Check for the new C4TS/Structurizr format first: `created_at`
+  if ((log as any).created_at) {
+    return (log as any).created_at;
+  }
+  // Fallback for the original C4TS format: `createdAt`
+  if ((log as RawApiLog).createdAt) {
+    return (log as RawApiLog).createdAt;
+  }
+  // Fallback for the old Structurizr format: `createdAt: { $date: "..." }`
+  if ((log as RawStructurizrLog).createdAt?.$date) {
+    return (log as RawStructurizrLog).createdAt?.$date;
+  }
+  // If no date is found, return undefined
+  return undefined;
+};
+
+
+// --- C4TS TRANSFORMERS (Corrected to use the helper) ---
+
 export const transformC4TSLogsToTimeSeries = (logs: RawApiLog[]): DataPoint[] => {
-  console.log("--- [Transformer] transformC4TSLogsToTimeSeries: Received", logs?.length, "logs.");
   if (!logs || logs.length === 0) return [];
-
   const hitsByDay: { [date: string]: number } = {};
-  
-  logs.forEach((log, index) => {
-    // Log each individual log entry to check its structure
-    if (index < 5) { // Only log the first 5 to avoid spamming the console
-      console.log(`[Transformer] C4TS Log #${index}:`, log);
-    }
-    
-    // Check if the createdAt field exists before trying to parse it
-    if (log.createdAt) {
+
+  logs.forEach(log => {
+    const dateString = getLogDateString(log);
+    if (dateString) {
       try {
-        const date = startOfDay(parseISO(log.createdAt));
-        // Check if the parsed date is valid
-        if (!isNaN(date.getTime())) {
-          const dayKey = format(date, 'yyyy-MM-dd');
-          hitsByDay[dayKey] = (hitsByDay[dayKey] || 0) + 1;
-        } else {
-          console.warn(`[Transformer] C4TS Log #${index} had an invalid date string:`, log.createdAt);
-        }
-      } catch (e) {
-        console.error(`[Transformer] C4TS Log #${index} failed to parse date:`, log.createdAt, e);
-      }
-    } else {
-        console.warn(`[Transformer] C4TS Log #${index} is missing the 'createdAt' field.`);
+        const day = format(startOfDay(parseISO(dateString)), 'yyyy-MM-dd');
+        hitsByDay[day] = (hitsByDay[day] || 0) + 1;
+      } catch (e) { /* Safely ignore invalid date strings */ }
     }
   });
-
-  console.log("[Transformer] C4TS hits grouped by day:", hitsByDay);
   
-  if (Object.keys(hitsByDay).length === 0) {
-    console.log("[Transformer] No valid dates were found to group by. Returning empty array.");
-    return [];
-  }
+  if (Object.keys(hitsByDay).length === 0) return [];
 
-  // ... (The rest of the function for filling in gaps remains the same)
   const allDates = Object.keys(hitsByDay).map(d => new Date(d));
   const dateInterval = eachDayOfInterval({
     start: new Date(Math.min(...allDates.map(d => d.getTime()))),
     end: new Date(Math.max(...allDates.map(d => d.getTime()))),
   });
 
-  const finalData = dateInterval.map(date => {
-    const dayKey = format(date, 'yyyy-MM-dd');
-    return {
-      date: format(date, 'MMM d'),
-      value: hitsByDay[dayKey] || 0,
-    };
-  });
-  
-  console.log("[Transformer] C4TS final transformed data length:", finalData.length);
-  return finalData;
+  return dateInterval.map(date => ({
+    date: format(date, 'MMM d'),
+    value: hitsByDay[format(date, 'yyyy-MM-dd')] || 0,
+  }));
 };
 
 
@@ -112,111 +100,69 @@ export const extractStructurizrDistinctUsers = (logs: RawStructurizrLog[]): Set<
 
 // --- THIS IS THE MISSING FUNCTION ---
 // --- REBUILD THIS FUNCTION WITH DETAILED LOGGING & NEW `created_at` FIELD ---
-export const transformStructurizrToCreationTrend = (logs: RawStructurizrLog[]): DataPoint[] => {
-  console.log("--- [Transformer] transformStructurizrToCreationTrend: Received", logs?.length, "logs.");
-  if (!logs || logs.length === 0) return [];
+// --- STRUCTURIZR TRANSFORMERS (Corrected to use the helper) ---
 
+export const transformStructurizrToCreationTrend = (logs: RawStructurizrLog[]): DataPoint[] => {
+  if (!logs || logs.length === 0) return [];
   const createdByDay: { [date: string]: number } = {};
 
-  logs.forEach((log, index) => {
-    // Log each individual log entry
-    if (index < 5) {
-      console.log(`[Transformer] Structurizr Log #${index}:`, log);
-    }
-    
-    // Use the new top-level `created_at` field. It's much simpler!
-    const dateString = (log as any).created_at; // Use `created_at` from your Postman screenshot
-
+  logs.forEach(log => {
+    const dateString = getLogDateString(log);
     if (dateString) {
       try {
-        const date = startOfDay(parseISO(dateString));
-        if (!isNaN(date.getTime())) {
-          const dayKey = format(date, 'yyyy-MM-dd');
-          createdByDay[dayKey] = (createdByDay[dayKey] || 0) + 1;
-        } else {
-          console.warn(`[Transformer] Structurizr Log #${index} had an invalid date string:`, dateString);
-        }
-      } catch (e) {
-        console.error(`[Transformer] Structurizr Log #${index} failed to parse date:`, dateString, e);
+        const day = format(startOfDay(parseISO(dateString)), 'yyyy-MM-dd');
+        createdByDay[day] = (createdByDay[day] || 0) + 1;
+      } catch (e) { /* Safely ignore */ }
+    }
+  });
+  
+  if (Object.keys(createdByDay).length === 0) return [];
+
+  const allDates = Object.keys(createdByDay).map(d => new Date(d));
+  const dateInterval = eachDayOfInterval({ /* ... */ });
+
+  return dateInterval.map(date => ({
+    date: format(date, 'MMM d'),
+    value: createdByDay[format(date, 'yyyy-MM-dd')] || 0,
+  }));
+};
+
+export const transformStructurizrToMultiLineTrend = (logs: RawStructurizrLog[]): MultiLineDataPoint[] => {
+  if (!logs || logs.length === 0) return [];
+  const dailyActivity: { [date: string]: { created: number; deleted: number; } } = {};
+
+  logs.forEach(log => {
+    const dateString = getLogDateString(log);
+    if (dateString) {
+      const day = format(startOfDay(parseISO(dateString)), 'yyyy-MM-dd');
+      if (!dailyActivity[day]) {
+        dailyActivity[day] = { created: 0, deleted: 0 };
       }
-    } else {
-        // Fallback to the old format just in case, for backwards compatibility
-        const oldDateString = log.createdAt?.$date;
-        if (oldDateString) {
-            // ... (similar try/catch block for old format)
-        } else {
-            console.warn(`[Transformer] Structurizr Log #${index} is missing a creation date.`);
-        }
+      dailyActivity[day].created++;
+      if (log.deleted === true) {
+        dailyActivity[day].deleted++;
+      }
     }
   });
 
-  console.log("[Transformer] Structurizr creations grouped by day:", createdByDay);
+  const allDates = Object.keys(dailyActivity).map(d => new Date(d));
+  if (allDates.length === 0) return [];
+  const dateInterval = eachDayOfInterval({ /* ... */ });
 
-  if (Object.keys(createdByDay).length === 0) {
-    console.log("[Transformer] No valid dates were found to group by. Returning empty array.");
-    return [];
-  }
-
-  // ... (The rest of the function for filling in gaps remains the same) ...
-  const allDates = Object.keys(createdByDay).map(d => new Date(d));
-  const dateInterval = eachDayOfInterval({
-    start: new Date(Math.min(...allDates.map(d => d.getTime()))),
-    end: new Date(Math.max(...allDates.map(d => d.getTime()))),
-  });
-
-  const finalData = dateInterval.map(date => {
+  let activeCount = 0;
+  return dateInterval.map(date => {
     const dayKey = format(date, 'yyyy-MM-dd');
+    const activity = dailyActivity[dayKey] || { created: 0, deleted: 0 };
+    activeCount += (activity.created - activity.deleted);
     return {
       date: format(date, 'MMM d'),
-      value: createdByDay[dayKey] || 0,
+      created: activity.created,
+      deleted: activity.deleted,
+      active: activeCount,
     };
   });
-  
-  console.log("[Transformer] Structurizr final transformed data length:", finalData.length);
-  return finalData;
 };
 
-// --- END OF MISSING FUNCTION ---
-
-export const transformStructurizrToMultiLineTrend = (logs: RawStructurizrLog[]): MultiLineDataPoint[] => {
-    if (!logs || logs.length === 0) return [];
-
-    const dailyActivity: { [date: string]: { created: number; deleted: number; } } = {};
-    logs.forEach(log => {
-        if (log.createdAt?.$date) {
-            const day = format(startOfDay(new Date(log.createdAt.$date)), 'yyyy-MM-dd');
-            if (!dailyActivity[day]) {
-                dailyActivity[day] = { created: 0, deleted: 0 };
-            }
-            dailyActivity[day].created++;
-            if (log.deleted === true) {
-                dailyActivity[day].deleted++;
-            }
-        }
-    });
-
-    const allDates = logs.filter(log => log.createdAt?.$date).map(log => startOfDay(new Date(log.createdAt!.$date)));
-    if (allDates.length === 0) return [];
-
-    const interval = eachDayOfInterval({
-        start: new Date(Math.min(...allDates.map(d => d.getTime()))),
-        end: new Date(Math.max(...allDates.map(d => d.getTime()))),
-    });
-
-    let activeCount = 0;
-    return interval.map(date => {
-        const dayKey = format(date, 'yyyy-MM-dd');
-        const activity = dailyActivity[dayKey] || { created: 0, deleted: 0 };
-        activeCount += (activity.created - activity.deleted);
-        
-        return {
-            date: format(date, 'MMM d'),
-            Created: activity.created,
-            Deleted: activity.deleted,
-            Active: activeCount,
-        };
-    });
-};
 
 export const transformStructurizrToAccessMethods = (logs: RawStructurizrLog[]): CategoricalChartData[] => {
     if (!logs) return [];
