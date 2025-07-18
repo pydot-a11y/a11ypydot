@@ -8,34 +8,65 @@ import { UserData } from '../types/common';
 // == C4TS TRANSFORMERS
 // ==========================================================
 
+// --- REBUILD THIS FUNCTION WITH DETAILED LOGGING ---
 export const transformC4TSLogsToTimeSeries = (logs: RawApiLog[]): DataPoint[] => {
+  console.log("--- [Transformer] transformC4TSLogsToTimeSeries: Received", logs?.length, "logs.");
   if (!logs || logs.length === 0) return [];
 
   const hitsByDay: { [date: string]: number } = {};
-  logs.forEach(log => {
-    try {
-      const day = format(startOfDay(new Date(log.createdAt)), 'yyyy-MM-dd');
-      hitsByDay[day] = (hitsByDay[day] || 0) + 1;
-    } catch (e) { /* ignore invalid dates */ }
+  
+  logs.forEach((log, index) => {
+    // Log each individual log entry to check its structure
+    if (index < 5) { // Only log the first 5 to avoid spamming the console
+      console.log(`[Transformer] C4TS Log #${index}:`, log);
+    }
+    
+    // Check if the createdAt field exists before trying to parse it
+    if (log.createdAt) {
+      try {
+        const date = startOfDay(parseISO(log.createdAt));
+        // Check if the parsed date is valid
+        if (!isNaN(date.getTime())) {
+          const dayKey = format(date, 'yyyy-MM-dd');
+          hitsByDay[dayKey] = (hitsByDay[dayKey] || 0) + 1;
+        } else {
+          console.warn(`[Transformer] C4TS Log #${index} had an invalid date string:`, log.createdAt);
+        }
+      } catch (e) {
+        console.error(`[Transformer] C4TS Log #${index} failed to parse date:`, log.createdAt, e);
+      }
+    } else {
+        console.warn(`[Transformer] C4TS Log #${index} is missing the 'createdAt' field.`);
+    }
   });
 
-  // Get the date range from the data we have
+  console.log("[Transformer] C4TS hits grouped by day:", hitsByDay);
+  
+  if (Object.keys(hitsByDay).length === 0) {
+    console.log("[Transformer] No valid dates were found to group by. Returning empty array.");
+    return [];
+  }
+
+  // ... (The rest of the function for filling in gaps remains the same)
   const allDates = Object.keys(hitsByDay).map(d => new Date(d));
-  if (allDates.length === 0) return [];
   const dateInterval = eachDayOfInterval({
     start: new Date(Math.min(...allDates.map(d => d.getTime()))),
     end: new Date(Math.max(...allDates.map(d => d.getTime()))),
   });
 
-  // Create a continuous data set, filling gaps with 0
-  return dateInterval.map(date => {
+  const finalData = dateInterval.map(date => {
     const dayKey = format(date, 'yyyy-MM-dd');
     return {
       date: format(date, 'MMM d'),
-      value: hitsByDay[dayKey] || 0, // Use the count or default to 0
+      value: hitsByDay[dayKey] || 0,
     };
   });
+  
+  console.log("[Transformer] C4TS final transformed data length:", finalData.length);
+  return finalData;
 };
+
+
 
 export const transformC4TSLogsToTopUsers = (logs: RawApiLog[], topN: number = 6): CategoricalChartData[] => {
   if (!logs) return [];
@@ -80,34 +111,71 @@ export const extractStructurizrDistinctUsers = (logs: RawStructurizrLog[]): Set<
 };
 
 // --- THIS IS THE MISSING FUNCTION ---
+// --- REBUILD THIS FUNCTION WITH DETAILED LOGGING & NEW `created_at` FIELD ---
 export const transformStructurizrToCreationTrend = (logs: RawStructurizrLog[]): DataPoint[] => {
+  console.log("--- [Transformer] transformStructurizrToCreationTrend: Received", logs?.length, "logs.");
   if (!logs || logs.length === 0) return [];
+
   const createdByDay: { [date: string]: number } = {};
 
-  logs.forEach(log => {
-    if (log.createdAt?.$date) {
+  logs.forEach((log, index) => {
+    // Log each individual log entry
+    if (index < 5) {
+      console.log(`[Transformer] Structurizr Log #${index}:`, log);
+    }
+    
+    // Use the new top-level `created_at` field. It's much simpler!
+    const dateString = (log as any).created_at; // Use `created_at` from your Postman screenshot
+
+    if (dateString) {
       try {
-        const day = format(startOfDay(new Date(log.createdAt.$date)), 'yyyy-MM-dd');
-        createdByDay[day] = (createdByDay[day] || 0) + 1;
-      } catch (e) { /* ignore invalid dates */ }
+        const date = startOfDay(parseISO(dateString));
+        if (!isNaN(date.getTime())) {
+          const dayKey = format(date, 'yyyy-MM-dd');
+          createdByDay[dayKey] = (createdByDay[dayKey] || 0) + 1;
+        } else {
+          console.warn(`[Transformer] Structurizr Log #${index} had an invalid date string:`, dateString);
+        }
+      } catch (e) {
+        console.error(`[Transformer] Structurizr Log #${index} failed to parse date:`, dateString, e);
+      }
+    } else {
+        // Fallback to the old format just in case, for backwards compatibility
+        const oldDateString = log.createdAt?.$date;
+        if (oldDateString) {
+            // ... (similar try/catch block for old format)
+        } else {
+            console.warn(`[Transformer] Structurizr Log #${index} is missing a creation date.`);
+        }
     }
   });
 
+  console.log("[Transformer] Structurizr creations grouped by day:", createdByDay);
+
+  if (Object.keys(createdByDay).length === 0) {
+    console.log("[Transformer] No valid dates were found to group by. Returning empty array.");
+    return [];
+  }
+
+  // ... (The rest of the function for filling in gaps remains the same) ...
   const allDates = Object.keys(createdByDay).map(d => new Date(d));
-  if (allDates.length === 0) return [];
   const dateInterval = eachDayOfInterval({
     start: new Date(Math.min(...allDates.map(d => d.getTime()))),
     end: new Date(Math.max(...allDates.map(d => d.getTime()))),
   });
 
-  return dateInterval.map(date => {
+  const finalData = dateInterval.map(date => {
     const dayKey = format(date, 'yyyy-MM-dd');
     return {
       date: format(date, 'MMM d'),
       value: createdByDay[dayKey] || 0,
     };
   });
+  
+  console.log("[Transformer] Structurizr final transformed data length:", finalData.length);
+  return finalData;
 };
+
 // --- END OF MISSING FUNCTION ---
 
 export const transformStructurizrToMultiLineTrend = (logs: RawStructurizrLog[]): MultiLineDataPoint[] => {
