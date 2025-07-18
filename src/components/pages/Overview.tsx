@@ -3,6 +3,17 @@
 // --- Helper Functions ---
 const formatNumber = (num: number | undefined): string => (num || 0).toLocaleString();
 
+const calculateTrend = (current: number, previous: number): Trend => {
+  if (previous === 0) {
+    return { value: current > 0 ? 100.0 : 0, direction: current > 0 ? 'up' : 'neutral' };
+  }
+  const percentageChange = ((current - previous) / previous) * 100;
+  return {
+    value: Math.abs(percentageChange),
+    direction: percentageChange > 0.1 ? 'up' : percentageChange < -0.1 ? 'down' : 'neutral',
+  };
+};
+
 // --- Component Definition ---
 interface PageContextType {
   activeFilters: ActiveFilters;
@@ -11,82 +22,75 @@ interface PageContextType {
 const Overview: React.FC = () => {
   const outletContext = useOutletContext<PageContextType | null>();
 
-  // Guard Clause: Render a loading state until filters are available from the Layout
-  if (!outletContext) {
-    return <div className="p-6 text-center text-gray-500 animate-pulse">Initializing...</div>;
-  }
-  const { activeFilters } = outletContext;
+  // --- All Hooks are called unconditionally at the top of the component ---
 
-  // --- 1. MASTER DATA QUERY ---
-  // This single, smart query fetches all data needed for the entire Overview page.
-  const { data: allData, isLoading, error } = useQuery({
-    // The query key includes all filters to ensure it refetches when any filter changes.
-    queryKey: ['overviewPageDataWithTrends', activeFilters],
-    queryFn: async () => {
-      // a. Get the date range for the period selected in the UI (e.g., "Last 90 Days")
-      const { startDate: currentStart, endDate: currentEnd } = getTimeframeDates(activeFilters.timeframe);
-      
-      // b. Calculate the immediately preceding period of the same length for trends.
-      const previousPeriod = getPrecedingPeriod({ start: currentStart, end: currentEnd });
-      
-      // c. Determine the widest possible date range we need to fetch.
-      const fetchStartDate = previousPeriod.start;
-      const fetchEndDate = currentEnd;
-      
-      // d. Fetch all the data we need from both sources in just two parallel calls.
-      const [c4tsLogs, structurizrLogs] = await Promise.all([
-        fetchRawC4TSLogsByDate(fetchStartDate, fetchEndDate),
-        fetchRawStructurizrLogsByDate(fetchStartDate, fetchEndDate),
-      ]);
-      
-      // e. Return all the raw data and the calculated periods for the next step.
-      return { c4tsLogs, structurizrLogs, currentPeriod: { start: currentStart, end: currentEnd }, previousPeriod };
+  const { data: rawC4TSLogs, isLoading: isLoadingC4TS, error: errorC4TS } = useQuery<RawApiLog[], Error>({
+    queryKey: ['overviewRawC4TSLogs'],
+    queryFn: () => {
+      const { currentPeriod, previousPeriod } = getTrendCalculationPeriods();
+      return fetchRawC4TSLogsByDate(previousPeriod.start, currentPeriod.end);
     },
-    staleTime: 1000 * 60 * 5, // Cache data for 5 minutes
+    staleTime: 1000 * 60 * 5,
   });
 
-  // --- 2. DERIVED DATA USING useMemo ---
-  // This hook acts as the "brain" of the component. It takes the raw data from the query
-  // and transforms it into all the specific pieces the UI needs to render.
+  const { data: rawStructurizrLogs, isLoading: isLoadingStructurizr, error: errorStructurizr } = useQuery<RawStructurizrLog[], Error>({
+    queryKey: ['overviewRawStructurizrLogs'],
+    queryFn: () => {
+      const endDate = new Date();
+      const startDate = subYears(endDate, 3);
+      return fetchRawStructurizrLogsByDate(startDate, endDate);
+    },
+    staleTime: 1000 * 60 * 5,
+  });
+
+  // This single useMemo hook derives all data needed by the page's components.
   const pageData = useMemo(() => {
-    // Wait until the master query has successfully fetched data.
-    if (!allData) return null;
+    if (!rawC4TSLogs || !rawStructurizrLogs || !outletContext) {
+      return null;
+    }
 
-    const { c4tsLogs, structurizrLogs, currentPeriod, previousPeriod } = allData;
+    const { activeFilters } = outletContext;
+    const { startDate: selectedStartDate, endDate: selectedEndDate } = getTimeframeDates(activeFilters.timeframe);
+    const { currentPeriod, previousPeriod } = getTrendCalculationPeriods();
     
-    // First, apply the user filter to the master datasets.
-    const filterByUser = (logs: (RawApiLog | RawStructurizrLog)[], user: string) => {
-        if (user === 'ALL_USERS') return logs;
-        return logs.filter(log => (log as RawApiLog).user === user || (log as RawStructurizrLog).eonid === user);
-    };
+    // --- START OF THE FIX ---
+    // We apply filters directly to the correctly typed arrays, avoiding unsafe assertions.
 
-    const c4tsFiltered = filterByUser(c4tsLogs, activeFilters.user) as RawApiLog[];
-    const structurizrFiltered = filterByUser(structurizrLogs, activeFilters.user) as RawStructurizrLog[];
+    // 1. Apply user filter to the master datasets.
+    const c4tsFilteredByUser = activeFilters.user !== 'ALL_USERS' ? rawC4TSLogs.filter(log => log.user === activeFilters.user) : rawC4TSLogs;
+    const structurizrFilteredByUser = activeFilters.user !== 'ALL_USERS' ? rawStructurizrLogs.filter(log => log.eonid === activeFilters.user) : rawStructurizrLogs;
 
-    // Create a robust helper for filtering by date range.
-    const filterByDateRange = (logs: (RawApiLog | RawStructurizrLog)[], range: { start: Date; end: Date }) => {
-      return logs.filter(log => {
-        const dateString = (log as any).created_at || (log as any).createdAt;
-        if (!dateString) return false;
-        try {
-          const date = parseISO(dateString);
-          return isWithinInterval(date, range);
-        } catch { return false; }
-      });
-    };
+    // 2. Slice the C4TS data by date.
+    const c4tsCurrent = c4tsFilteredByUser.filter(log => {
+      if (!log.createdAt) return false;
+      try { return isWithinInterval(parseISO(log.createdAt), { start: selectedStartDate, end: selectedEndDate }); } 
+      catch { return false; }
+    });
+    const c4tsPrevious = c4tsFilteredByUser.filter(log => {
+      if (!log.createdAt) return false;
+      try { return isWithinInterval(parseISO(log.createdAt), previousPeriod); } 
+      catch { return false; }
+    });
+
+    // 3. Slice the Structurizr data by date.
+    const structurizrCurrent = structurizrFilteredByUser.filter(log => {
+      const dateString = (log as any).created_at || log.createdAt?.$date;
+      if (!dateString) return false;
+      try { return isWithinInterval(parseISO(dateString), { start: selectedStartDate, end: selectedEndDate }); } 
+      catch { return false; }
+    });
+    const structurizrPrevious = structurizrFilteredByUser.filter(log => {
+      const dateString = (log as any).created_at || log.createdAt?.$date;
+      if (!dateString) return false;
+      try { return isWithinInterval(parseISO(dateString), previousPeriod); } 
+      catch { return false; }
+    });
+
+    // --- END OF THE FIX ---
     
-    // Slice the user-filtered data into "current" and "previous" buckets for trend calculation.
-    const c4tsCurrent = filterByDateRange(c4tsFiltered, currentPeriod) as RawApiLog[];
-    const c4tsPrevious = filterByDateRange(c4tsFiltered, previousPeriod) as RawApiLog[];
-    
-    const structurizrCurrent = filterByDateRange(structurizrFiltered, currentPeriod) as RawStructurizrLog[];
-    const structurizrPrevious = filterByDateRange(structurizrFiltered, previousPeriod) as RawStructurizrLog[];
-
-    // Handle the "All time" edge case for trends.
     const isAllTime = activeFilters.timeframe === 'all-time';
     const neutralTrend: Trend = { value: 0, direction: 'neutral' };
 
-    // Calculate all stats for the cards, applying the "All time" rule.
     const stats: OverviewSummaryStats = {
         totalApiHits: { value: c4tsCurrent.length, trend: isAllTime ? neutralTrend : calculateTrend(c4tsCurrent.length, c4tsPrevious.length) },
         activeWorkspaces: { value: getStructurizrActiveWorkspaceCount(structurizrCurrent), trend: isAllTime ? neutralTrend : calculateTrend(getStructurizrActiveWorkspaceCount(structurizrCurrent), getStructurizrActiveWorkspaceCount(structurizrPrevious)) },
@@ -94,14 +98,13 @@ const Overview: React.FC = () => {
         totalStructurizrUsers: { value: extractStructurizrDistinctUsers(structurizrCurrent).size, trend: isAllTime ? neutralTrend : calculateTrend(extractStructurizrDistinctUsers(structurizrCurrent).size, extractStructurizrDistinctUsers(structurizrPrevious).size) },
     };
 
-    // Transform the "current" data slices for the UI components.
     return {
         stats,
         c4tsChartData: transformC4TSLogsToTimeSeries(c4tsCurrent),
         structurizrChartData: transformStructurizrToCreationTrend(structurizrCurrent),
         topUsersData: transformToTopUsersAcrossSystems(c4tsCurrent, structurizrCurrent),
     };
-  }, [allData, activeFilters]);
+  }, [rawC4TSLogs, rawStructurizrLogs, outletContext]);
 
   const topUsersColumns: ColumnDef<UserData>[] = useMemo(() => [
     { header: 'User', accessorKey: 'name', tdClassName: 'font-medium text-gray-900' },
