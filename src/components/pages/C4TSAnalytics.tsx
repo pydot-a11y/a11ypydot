@@ -108,28 +108,50 @@ const C4TSAnalytics: React.FC = () => {
       </div>
 
       {/* Top Users Bar Chart Card */}
+      // src/pages/C4TSAnalytics.tsx
+
+// ... (inside the return statement)
+
+      {/* Top Users Bar Chart Card */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div></div> {/* This empty div pushes the chart to the right */}
+        <div></div>
         <div className="bg-white rounded-lg shadow">
           <div className="p-6 flex justify-between items-center">
             <h2 className="text-lg font-medium text-gray-900">TOP USERS</h2>
-            {/* The trend display is now fully dynamic */}
+            
+            {/* --- START OF REPLACEMENT --- */}
+            {/* This block replaces the old static <span> */}
             {topUsersTrend && (
-              <span className={`text-sm font-medium flex items-center ${
-                topUsersTrend.direction === 'up' ? 'text-green-600' : 
+              <div className={`mt-2 flex items-baseline text-sm ${
+                topUsersTrend.direction === 'up' ? 'text-green-600' :
                 topUsersTrend.direction === 'down' ? 'text-red-600' : 'text-gray-500'
               }`}>
-                {/* Your SVG icon can be conditionally rendered here based on direction */}
-                {topUsersTrend.value.toFixed(1)}% vs prior period
-              </span>
+                {topUsersTrend.direction === 'up' && (
+                  <svg className="self-center flex-shrink-0 h-4 w-4" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
+                    <path fillRule="evenodd" d="M5.293 9.707a1 1 0 010-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 01-1.414 1.414L11 7.414V15a1 1 0 11-2 0V7.414L6.707 9.707a1 1 0 01-1.414 0z" clipRule="evenodd" />
+                  </svg>
+                )}
+                {topUsersTrend.direction === 'down' && (
+                   <svg className="self-center flex-shrink-0 h-4 w-4" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
+                    <path fillRule="evenodd" d="M14.707 10.293a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 111.414-1.414L9 12.586V5a1 1 0 012 0v7.586l2.293-2.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                  </svg>
+                )}
+                <span className="ml-1">
+                  {topUsersTrend.value.toFixed(1)}%
+                </span>
+                <span className="ml-1 text-gray-500">
+                  vs prior period
+                </span>
+              </div>
             )}
+            {/* --- END OF REPLACEMENT --- */}
+
           </div>
           <div className="px-6 pb-6">
             <HorizontalBarChart data={topUsersChartData} barColor="#10b981" aspect={1.5} />
           </div>
         </div>
       </div>
-
       {/* API Hits (URL) Table Card */}
       <div className="bg-white rounded-lg shadow overflow-hidden">
         <div className="px-6 py-4 flex justify-between items-center border-b border-gray-200">
