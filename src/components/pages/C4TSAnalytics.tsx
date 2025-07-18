@@ -1,76 +1,81 @@
 // src/pages/C4TSAnalytics.tsx
 
-import React, { useMemo, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { useOutletContext } from 'react-router-dom';
-import axios from 'axios';
+// --- IMPORTS (Assume these are at the top of your file) ---
+// Please ensure you have these specific imports for the new logic:
+// import { differenceInDays, subDays } from 'date-fns';
+// import { calculateTrend } from '../utils/trendUtils';
+// import { extractC4TSDistinctUsers } from '../utils/dataTransformer';
 
-// Component Imports
-import SingleLineMetricChart from '../../components/charts/SingleLineMetricChart';
-import HorizontalBarChart from '../../components/charts/HorizontalBarChart';
-import TableComponent, { ColumnDef } from '../../components/common/TableComponent';
-
-// API & Transformer Imports
-import { fetchRawC4TSLogsByDate } from '../../services/apiService';
-import {
-  transformC4TSLogsToTimeSeries,
-  transformC4TSLogsToTopEndpoints,
-  transformC4TSLogsToTopUsers,
-} from '../../utils/dataTransformer';
-import { getTimeframeDates } from '../../utils/dateUtils';
-
-// Type Imports
-import { DataPoint, CategoricalChartData, RawApiLog } from '../../types/analytics';
-import { ApiEndpointData, ActiveFilters } from '../../types/common';
-
-// Helper for consistent number formatting
+// --- Helper Functions ---
 const formatNumber = (num: number | undefined): string => (num || 0).toLocaleString();
 
-// Context Type Definition
+// --- Component Definition ---
 interface PageContextType {
   activeFilters: ActiveFilters;
 }
 
 const C4TSAnalytics: React.FC = () => {
   const outletContext = useOutletContext<PageContextType | null>();
-  
-  // Local UI state for the "See All" table functionality
   const [showAllEndpoints, setShowAllEndpoints] = useState(false);
   const INITIAL_VISIBLE_ENDPOINTS = 5;
 
-  // Guard Clause: Render a loading state until filters are available
   if (!outletContext) {
-    return <div className="p-6 text-center text-gray-500">Initializing...</div>;
+    return <div className="p-6 text-center text-gray-500 animate-pulse">Initializing...</div>;
   }
   const { activeFilters } = outletContext;
 
   // --- 1. MASTER DATA QUERY ---
   // This single query fetches all raw C4TS log data for the selected timeframe.
-  // All other data on this page is derived from this single source of truth.
+  // The line chart, main bar chart, and table are all derived from this single source.
   const { data: rawLogs, isLoading, error } = useQuery<RawApiLog[], Error>({
-    // The query key is based on the timeframe, as this determines the API call.
-    // User-based filtering will happen on the frontend.
     queryKey: ['c4tsRawLogs', activeFilters.timeframe],
     queryFn: () => {
       const { startDate, endDate } = getTimeframeDates(activeFilters.timeframe);
       return fetchRawC4TSLogsByDate(startDate, endDate);
     },
+    staleTime: 1000 * 60 * 5, // Cache for 5 minutes
   });
 
-  // --- 2. FRONTEND FILTERING & DATA TRANSFORMATION (DERIVED DATA) ---
-  
-  // First, filter the raw data by the selected user. This is fast and efficient.
+  // --- 2. DEDICATED TREND QUERY ---
+  // This separate, background query fetches the data needed ONLY for the trend calculation
+  // on the "Top Users" card. This prevents the main UI from being blocked.
+  const { data: topUsersTrend } = useQuery<Trend, Error>({
+    queryKey: ['c4tsTopUsersTrend', activeFilters], // Refetch when any filter changes
+    queryFn: async () => {
+      // a. Get the date range for the currently selected period.
+      const { startDate: currentStart, endDate: currentEnd } = getTimeframeDates(activeFilters.timeframe);
+      // b. Calculate the immediately preceding period of the same length.
+      const previousPeriod = getPrecedingPeriod({ start: currentStart, end: currentEnd });
+
+      // c. Fetch data for both periods in parallel.
+      const [currentLogs, previousLogs] = await Promise.all([
+        fetchRawC4TSLogsByDate(currentStart, currentEnd),
+        fetchRawC4TSLogsByDate(previousPeriod.start, previousPeriod.end)
+      ]);
+
+      // d. Apply the user filter to both datasets.
+      const filterByUser = (logs: RawApiLog[]) => activeFilters.user !== 'ALL_USERS' ? logs.filter(log => log.user === activeFilters.user) : logs;
+      
+      const currentUsersCount = extractC4TSDistinctUsers(filterByUser(currentLogs)).size;
+      const previousUsersCount = extractC4TSDistinctUsers(filterByUser(previousLogs)).size;
+      
+      // e. Return the calculated trend.
+      return calculateTrend(currentUsersCount, previousUsersCount);
+    },
+    staleTime: 1000 * 60 * 5,
+  });
+
+  // --- 3. DERIVED DATA using useMemo ---
+  // These transformations are based on the master `rawLogs` query and are very fast.
   const filteredLogs = useMemo(() => {
     if (!rawLogs) return [];
     if (activeFilters.user === 'ALL_USERS') return rawLogs;
     return rawLogs.filter(log => log.user === activeFilters.user);
   }, [rawLogs, activeFilters.user]);
 
-  // Now, transform the filtered data for each component.
-  // useMemo ensures these transformations only run when `filteredLogs` changes.
   const apiHitsData = useMemo(() => transformC4TSLogsToTimeSeries(filteredLogs), [filteredLogs]);
   const topUsersChartData = useMemo(() => transformC4TSLogsToTopUsers(filteredLogs, 6), [filteredLogs]);
-  const topEndpointsData = useMemo(() => transformC4TSLogsToTopEndpoints(filteredLogs, 50), [filteredLogs]); // Fetch more for "See All"
+  const topEndpointsData = useMemo(() => transformC4TSLogsToTopEndpoints(filteredLogs, 50), [filteredLogs]);
   const visibleEndpoints = useMemo(() => showAllEndpoints ? topEndpointsData : topEndpointsData.slice(0, INITIAL_VISIBLE_ENDPOINTS), [topEndpointsData, showAllEndpoints]);
 
   const apiHitsUrlColumns: ColumnDef<ApiEndpointData>[] = useMemo(() => [
@@ -79,19 +84,15 @@ const C4TSAnalytics: React.FC = () => {
   ], []);
 
   const c4tsApiHitsPeakInfoProvider = (point: DataPoint): string | null => {
-    // Logic to determine if 'point' is a peak to show a special tooltip
-    // This is just an example; you can define your own peak logic.
-    if (apiHitsData && point.value === Math.max(...apiHitsData.map(p => p.value))) {
+    if (apiHitsData && point.value > 0 && point.value === Math.max(...apiHitsData.map(p => p.value))) {
       return `${point.value} Hits\nPeak Activity`;
     }
     return null;
   };
 
-  // --- 3. RENDER LOGIC ---
-  
-  // Use the loading and error state from our single master query
-  if (isLoading) return <div className="p-6 text-center text-gray-500">Loading C4TS Data...</div>;
-  if (error) return <div className="p-6 text-center text-red-500">Error fetching data: {error.message}</div>;
+  // --- 4. RENDER LOGIC ---
+  if (isLoading) return <div className="p-6 text-center text-gray-500 animate-pulse">Loading C4TS Data...</div>;
+  if (error) return <div className="p-6 text-center text-red-500">Error: {error.message}</div>;
 
   return (
     <div className="space-y-6">
@@ -112,11 +113,16 @@ const C4TSAnalytics: React.FC = () => {
         <div className="bg-white rounded-lg shadow">
           <div className="p-6 flex justify-between items-center">
             <h2 className="text-lg font-medium text-gray-900">TOP USERS</h2>
-            {/* Note: Trend percentage is static as we don't have the data for it */}
-            <span className="text-sm font-medium text-green-600 flex items-center">
-              <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M5.293 9.707a1 1 0 010-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 01-1.414 1.414L11 7.414V15a1 1 0 11-2 0V7.414L6.707 9.707a1 1 0 01-1.414 0z" clipRule="evenodd"></path></svg>
-              3.5% Increase
-            </span>
+            {/* The trend display is now fully dynamic */}
+            {topUsersTrend && (
+              <span className={`text-sm font-medium flex items-center ${
+                topUsersTrend.direction === 'up' ? 'text-green-600' : 
+                topUsersTrend.direction === 'down' ? 'text-red-600' : 'text-gray-500'
+              }`}>
+                {/* Your SVG icon can be conditionally rendered here based on direction */}
+                {topUsersTrend.value.toFixed(1)}% vs prior period
+              </span>
+            )}
           </div>
           <div className="px-6 pb-6">
             <HorizontalBarChart data={topUsersChartData} barColor="#10b981" aspect={1.5} />
@@ -134,7 +140,7 @@ const C4TSAnalytics: React.FC = () => {
             </button>
           )}
         </div>
-        <TableComponent columns={apiHitsUrlColumns} data={visibleEndpoints} noDataMessage="No API hit data by URL to display." />
+        <TableComponent columns={apiHitsUrlColumns} data={visibleEndpoints} getRowKey="id" noDataMessage="No API hit data by URL to display." />
       </div>
     </div>
   );
