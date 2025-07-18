@@ -14,6 +14,8 @@ const calculateTrend = (current: number, previous: number): Trend => {
   };
 };
 
+// --- Component Definition ---// src/pages/Overview.tsx
+
 // --- Component Definition ---
 interface PageContextType {
   activeFilters: ActiveFilters;
@@ -90,6 +92,7 @@ const Overview: React.FC = () => {
         topUsersData: transformToTopUsersAcrossSystems(c4tsCurrent, structurizrCurrent),
     };
   }, [allData, activeFilters]);
+
 
   const topUsersColumns: ColumnDef<UserData>[] = useMemo(() => [
     { header: 'User', accessorKey: 'name', tdClassName: 'font-medium text-gray-900' },
