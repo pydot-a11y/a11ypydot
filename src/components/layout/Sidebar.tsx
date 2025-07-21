@@ -1,74 +1,75 @@
 // src/components/layout/Sidebar.tsx
 
-// --- Placeholder Icons ---
-// These represent your actual SVG icon components. As long as they use
-// `fill="currentColor"` or `stroke="currentColor"`, their color will be
-// correctly controlled by the parent's text color classes.
-const OverviewIcon = () => <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path d="M5 3a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2V5a2 2 0 00-2-2H5zM5 11a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2v-2a2 2 0 00-2-2H5zM11 5a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V5zM11 13a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"></path></svg>;
-const C4TSIcon = () => <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path d="M7 3a1 1 0 000 2h6a1 1 0 100-2H7zM4 7a1 1 0 011-1h10a1 1 0 110 2H5a1 1 0 01-1-1zM2 11a2 2 0 012-2h12a2 2 0 012 2v4a2 2 0 01-2 2H4a2 2 0 01-2-2v-4z"></path></svg>;
-const StructurizrIcon = () => <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path d="M11 17a1 1 0 001.447.894l4-2A1 1 0 0017 15V5a1 1 0 00-1.447-.894l-4 2a1 1 0 00-.553.894V17zM15.211 6.276a1 1 0 00-1.447.894V14.11l2.553-1.276a1 1 0 00.553-.894V7.17l-1.659-.825zM4.789 13.724a1 1 0 001.447-.894V7.89l-2.553 1.276a1 1 0 00-.553.894v6.83l1.659.825zM3 5a1 1 0 00-1.447-.894l-4 2A1 1 0 00-3 7v8a1 1 0 001.447.894l4-2a1 1 0 00.553-.894V5z" clipRule="evenodd"></path></svg>;
-
-// --- Component Definition ---
-
-const navigationItems = [
-    { name: 'Analytics Overview', to: '/', icon: OverviewIcon },
-];
-
-const detailedAnalyticsItems = [
-    { name: 'Structurizr Analytics', to: '/structurizr', icon: StructurizrIcon },
-    { name: 'C4TS Analytics', to: '/c4ts', icon: C4TSIcon },
-];
-
 const Sidebar: React.FC = () => {
-    // Define the CSS classes for base, active, and inactive states for consistency.
-    const navLinkBaseClass = "flex items-center px-3 py-2 rounded-md text-sm font-medium transition-colors duration-150";
-    const activeClass = "bg-primary-100 text-primary-700"; // Light blue background, dark blue text
-    const inactiveClass = "text-gray-700 hover:bg-gray-100 hover:text-gray-900"; // Gray text with a lighter hover
 
+    const navLinkClasses = "flex items-center px-3 py-2 rounded-md text-sm font-medium transition-colors duration-150";
+  
+    // CORRECTED: These classes use Tailwind's default blue palette.
+    // The 'font-semibold' makes the active link bolder than the 'font-medium' on inactive links.
+    const activeClass = "bg-blue-100 text-blue-700 font-semibold"; 
+    const inactiveClass = "text-gray-600 hover:bg-gray-100 font-medium";
+  
     return (
-        <aside className="w-64 flex-shrink-0 bg-white border-r border-gray-200 flex flex-col">
-            <div className="h-16 flex items-center justify-center border-b border-gray-200">
-                <h1 className="text-xl font-semibold text-primary-700">EA Analytics</h1>
+      <aside className="w-64 h-full bg-white border-r border-gray-200 flex flex-col">
+        <div className="h-16 flex items-center justify-center border-b border-gray-200">
+          <h1 className="text-primary-500 text-xl font-semibold">EA Analytics</h1>
+        </div>
+  
+        <nav className="flex-1 overflow-y-auto py-4">
+          <div className="px-4 mb-4">
+            <NavLink
+              to="/"
+              end // This is crucial to ensure it's only active for the exact root path
+              className={({ isActive }) => 
+                `${navLinkClasses} ${isActive ? activeClass : inactiveClass}`
+              }
+            >
+              {/* Your Original Analytics Overview SVG Icon */}
+              <svg className="w-6 h-6 mr-3" viewBox="0 0 20 20" fill="currentColor">
+                <path d="M5 3a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2V5a2 2 0 00-2-2H5zM5 11a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2v-2a2 2 0 00-2-2H5zM11 5a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V5zM11 13a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"></path>
+              </svg>
+              Analytics Overview
+            </NavLink>
+          </div>
+  
+          <div className="px-4 mt-2">
+            <h3 className="px-3 text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
+              DETAILED ANALYTICS
+            </h3>
+            <div className="space-y-1">
+              <NavLink
+                to="/structurizr"
+                className={({ isActive }) =>
+                  `${navLinkClasses} ${isActive ? activeClass : inactiveClass}`
+                }
+              >
+                {/* Your Original Structurizr SVG Icon */}
+                <svg className="w-6 h-6 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <rect x="3" y="3" width="18" height="18" rx="2" strokeWidth="2"></rect>
+                  <line x1="7" y1="8" x2="17" y2="8" strokeWidth="2"></line>
+                  <line x1="7" y1="12" x2="17" y2="12" strokeWidth="2"></line>
+                  <line x1="7" y1="16" x2="13" y2="16" strokeWidth="2"></line>
+                </svg>
+                Structurizr Analytics
+              </NavLink>
+  
+              <NavLink
+                to="/c4ts"
+                className={({ isActive }) =>
+                  `${navLinkClasses} ${isActive ? activeClass : inactiveClass}`
+                }
+              >
+                {/* Your Original C4TS SVG Icon */}
+                <svg className="w-6 h-6 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a2 2 0 01-2 2H6a2 2 0 01-2-2V4z"></path>
+                </svg>
+                C4TS Analytics
+              </NavLink>
             </div>
-            <nav className="flex-1 p-4 space-y-1">
-                {navigationItems.map(item => (
-                    <NavLink
-                        key={item.name}
-                        to={item.to}
-                        // The 'end' prop is crucial for the root route '/' to prevent it from matching all other routes.
-                        end 
-                        className={({ isActive }) => 
-                            `${navLinkBaseClass} ${isActive ? activeClass : inactiveClass}`
-                        }
-                    >
-                        <item.icon />
-                        <span className="ml-3">{item.name}</span>
-                    </NavLink>
-                ))}
-                
-                <div className="pt-4">
-                    <h3 className="px-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                        DETAILED ANALYTICS
-                    </h3>
-                    <div className="mt-2 space-y-1">
-                        {detailedAnalyticsItems.map(item => (
-                            <NavLink
-                                key={item.name}
-                                to={item.to}
-                                // The function passed to className is what makes the styling dynamic.
-                                className={({ isActive }) => 
-                                    `${navLinkBaseClass} ${isActive ? activeClass : inactiveClass}`
-                                }
-                            >
-                                <item.icon />
-                                <span className="ml-3">{item.name}</span>
-                            </NavLink>
-                        ))}
-                    </div>
-                </div>
-            </nav>
-        </aside>
+          </div>
+        </nav>
+      </aside>
     );
-};
-
-export default Sidebar;
+  };
+  
+  export default Sidebar;
