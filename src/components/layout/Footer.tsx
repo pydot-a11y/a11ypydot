@@ -1,32 +1,37 @@
+// src/components/layout/Footer.tsx
+
+import React from 'react';
+import { format } from 'date-fns';
+
+// Define the props the component now expects
 interface FooterProps {
-    lastUpdated?: string;
-    refreshInterval?: number;
-  }
-  
-  const Footer = ({ 
-    lastUpdated = "Today, at 10:00 am", 
-    refreshInterval = 4 
-  }: FooterProps) => {
+  lastUpdated: Date | null;
+  refreshIntervalMinutes: number;
+}
+
+const Footer: React.FC<FooterProps> = ({ lastUpdated, refreshIntervalMinutes }) => {
     return (
-      <footer className="bg-white border-t border-gray-200 py-3 px-6">
-        <div className="flex flex-col sm:flex-row justify-between items-center text-sm text-gray-500">
-          <div>
-            Last updated: {lastUpdated}
-          </div>
-          <div className="flex items-center mt-2 sm:mt-0">
-            <span>Auto-refresh: {refreshInterval} hours</span>
-            <button 
-              className="ml-4 text-primary-500 hover:text-primary-600 focus:outline-none"
-              aria-label="Refresh data"
-            >
-              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-              </svg>
-            </button>
-          </div>
-        </div>
-      </footer>
+        <footer className="bg-white border-t border-gray-200 px-6 py-3">
+            <div className="flex items-center justify-between text-sm text-gray-500">
+                {/* Conditionally render the "Data as of" timestamp */}
+                {lastUpdated ? (
+                    // Format the date for a nice display, e.g., "Data as of: 4:35:22 PM"
+                    <p>Data as of: {format(lastUpdated, 'p')}</p>
+                ) : (
+                    // Show a placeholder while the first fetch is happening
+                    <p className="animate-pulse">Fetching latest data...</p>
+                )}
+                
+                {/* The disabled Auto-refresh button and text */}
+                <div className="flex items-center space-x-2 text-gray-400">
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h5m11 2a9 9 0 11-2-6.32M20 20v-5h-5" />
+                    </svg>
+                    <span>Auto-refresh in {refreshIntervalMinutes}m</span>
+                </div>
+            </div>
+        </footer>
     );
-  };
-  
-  export default Footer;
+};
+
+export default Footer;
