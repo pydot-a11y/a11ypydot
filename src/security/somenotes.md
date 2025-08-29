@@ -32,3 +32,14 @@ Update your build.gradle file with the dependencies.
 Change the one placeholder in determineModifiedBy() to a test value like "Test User".
 Set the two environment variables so your plugin knows where to send data and what the secret key is.
 Build and run your plugin.
+
+
+
+
+
+Hi Gregory,
+Hope you’re doing well.
+
+I’m working on extending the Structurizr plugin so it can emit workspace modification events to the Structurizr portal. I’d like to confirm what authentication mechanisms are supported or recommended for sending data from the plugin to the portal.
+
+Specifically, should this integration rely on Kerberos tickets, mTLS, or JWT issued via MSAD SSO (or another mechanism you’ve already set up)?
