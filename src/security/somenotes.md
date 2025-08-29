@@ -43,3 +43,9 @@ Hope you’re doing well.
 I’m working on extending the Structurizr plugin so it can emit workspace modification events to the Structurizr portal. I’d like to confirm what authentication mechanisms are supported or recommended for sending data from the plugin to the portal.
 
 Specifically, should this integration rely on Kerberos tickets, mTLS, or JWT issued via MSAD SSO (or another mechanism you’ve already set up)?
+
+
+Thanks, Gregory! That’s very helpful.
+Could you point me to any documentation or code examples on how a Java application can obtain an OIDC token from Webstax? That would really help me integrate the plugin with the portal using the correct approach.
+
+"Thanks, Gregory! That's very helpful. Could you point me to the documentation or a code example for how a Java application can get an OIDC token from Webstax?"
