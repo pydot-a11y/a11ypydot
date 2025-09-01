@@ -48,4 +48,4 @@ Specifically, should this integration rely on Kerberos tickets, mTLS, or JWT iss
 Thanks, Gregory! That’s very helpful.
 Could you point me to any documentation or code examples on how a Java application can obtain an OIDC token from Webstax? That would really help me integrate the plugin with the portal using the correct approach.
 
-"Thanks, Gregory! That's very helpful. Could you point me to the documentation or a code example for how a Java application can get an OIDC token from Webstax?"
+"Thanks, Gregory! That's very helpful. Could you point me to the documentation or a code example for how a Java application can get an OIDC token from Webstax?
