@@ -1,51 +1,142 @@
-Step 3: Fill in the ONE Placeholder (Taste and Adjust)
-This is the only piece of code you need to think about. In the WorkspacePlugin.java file, find this method:
-code
-Java
-private String determineModifiedBy(WorkspaceEvent event) {
-    // TODO: This is a critical placeholder. You need to investigate the `WorkspaceEvent`
-    // or other Structurizr context to find the actual user's identity.
-    // For now, we return a placeholder.
-    return "user.from.plugin.context";
+Love that. Here’s a clean, concrete implementation structure you can adopt end-to-end (auth = Kerberos/SPNEGO via Webstax; plugin = Java; portal = Next.js; DB = Mongo in phase 2).
+
+1) Architecture (single slide)
+	•	Plugin (Java) → SPNEGO (Kerberos) → Webstax/OIDC → session cookie → Portal (Next.js) → Mongo
+	•	Event type: WORKSPACE_MODIFIED
+	•	Write model (phase 2): workspace_activity (append-only) + workspaces.lastModified* (upsert)
+
+2) Repos & module layout
+
+A. Plugin repo
+
+/src/main/java/...
+  com.ms.szr.plugin/
+    WorkspacePlugin.java          // beforeSave/afterSave hook
+    emit/
+      EventPayloads.java          // builds JSON
+      EventEmitter.java           // GET prime → POST event
+    http/
+      RestTemplateConfig.java     // HttpClient5 + SPNEGO + CookieStore + redirects
+    util/
+      Json.java, Clock.java
+/resources/
+  logback.xml
+
+B. Portal repo
+
+/app (or /pages)
+/api/events/ping/route.ts         // GET 204 (priming)
+/api/events/workspace-modified/route.ts // POST 204 (phase1), +DB (phase2)
+/lib/db.ts                         // Mongo client
+/lib/validation.ts                 // zod schema (phase2)
+
+3) Cross-team contracts
+
+HTTP
+	•	GET /api/events/ping → 204
+	•	POST /api/events/workspace-modified
+	•	Headers: session cookie (from Webstax), Content-Type: application/json
+	•	Body:
+
+{
+  "eventId":"uuid",
+  "eventType":"WORKSPACE_MODIFIED",
+  "workspaceId":"12345",
+  "modifiedAt":"2025-09-02T10:01:02Z",
+  "modifiedBy": "optional@later"
 }
-Action for Now (Thin Slice): To get things working for your first test, it is perfectly okay to just change the return value to a simple string.
-code
-Java
-// Change it to this for your first test:
-return "Test User";
-Action for Later (Real Version): You will need to come back here and figure out how to get the real username. You can do this by inspecting the event object that is passed into the method. Does it have a method like event.getUsername() or event.getUser()? This requires a little bit of investigation into the Structururizr library itself. But for now, a placeholder is fine.
-✅ Step 4: Configure the Environment (Turn on the Oven)
-The Java code needs two secret pieces of information that should NOT be written in the code itself: the API address and the HMAC secret key.
-Action: You need to set these as Environment Variables in the place where your Structurizr plugin runs.
-PORTAL_API_URL: The full address of the Next.js API endpoint we are about to build.
-Example Value: http://localhost:3000/api/events/workspace-modified
-PORTAL_API_SECRET: A long, random, secret string. You make this up. It must be exactly the same in Java and in your Next.js app.
-Example Value: ThisIsMySuperSecretKeyForHmacAndItShouldBeVeryLongAndRandom123!
-How to set them in IntelliJ for testing:
-Go to Run -> Edit Configurations...
-Find the run configuration for your plugin/application.
-In the "Environment variables" field, add the two variables above.
-Summary of Your Task
-So, to answer your question: Yes, the code was detailed enough. Your job is to:
-Create the files in the right folders and paste the code.
-Update your build.gradle file with the dependencies.
-Change the one placeholder in determineModifiedBy() to a test value like "Test User".
-Set the two environment variables so your plugin knows where to send data and what the secret key is.
-Build and run your plugin.
 
 
+	•	Responses: 204 (ok), 400 (bad JSON), 401 (no session), 429/5xx (errors)
+
+4) Kerberos runtime shape
+	•	JVM flags (JDK≥16):
+
+--add-exports=java.security.jgss/sun.security.jgss=ALL-UNNAMED
+--add-exports=java.security.jgss/sun.security.jgss.spi=ALL-UNNAMED
+--add-exports=java.security.jgss/sun.security.krb5=ALL-UNNAMED
+--add-exports=java.security.jgss/sun.security.krb5.internal=ALL-UNNAMED
+--add-exports=java.security.jgss/sun.security.krb5.internal.ccache=ALL-UNNAMED
+--add-exports=java.base/sun.security.util=ALL-UNNAMED
+-Djavax.security.auth.useSubjectCredsOnly=false
 
 
+	•	Non-Windows: -Djava.security.krb5.conf=/etc/krb5.conf; ensure TGT via kinit/keytab.
 
-Hi Gregory,
-Hope you’re doing well.
+5) Plugin internals (concrete)
 
-I’m working on extending the Structurizr plugin so it can emit workspace modification events to the Structurizr portal. I’d like to confirm what authentication mechanisms are supported or recommended for sending data from the plugin to the portal.
+EventEmitter.java
+	•	Holds a single RestTemplate built from RestTemplateConfig (shared CookieStore).
+	•	emitModified(long workspaceId):
+	1.	GET /api/events/ping (consume entity)
+	2.	POST /api/events/workspace-modified (payload from EventPayloads.modified(...))
+	3.	Log status; thin slice: no retries yet.
 
-Specifically, should this integration rely on Kerberos tickets, mTLS, or JWT issued via MSAD SSO (or another mechanism you’ve already set up)?
+WorkspacePlugin.java
+	•	Prefer afterSave(event); else call at end of beforeSave after event.setJson(newJson).
+	•	Resolve workspaceId (from event or parsed JSON).
 
+RestTemplateConfig.java
+	•	Apache HttpClient5:
+	•	DefaultRedirectStrategy
+	•	BasicCookieStore (shared)
+	•	SPNEGO/Kerberos scheme + credentials (install your corp provider)
+	•	Wrap in HttpComponentsClientHttpRequestFactory.
 
-Thanks, Gregory! That’s very helpful.
-Could you point me to any documentation or code examples on how a Java application can obtain an OIDC token from Webstax? That would really help me integrate the plugin with the portal using the correct approach.
+6) Portal internals (concrete)
 
-"Thanks, Gregory! That's very helpful. Could you point me to the documentation or a code example for how a Java application can get an OIDC token from Webstax?
+Phase 1
+	•	ping: return 204.
+	•	workspace-modified: console.log(body); return 204.
+	•	(If cookie-session + CSRF is on) exempt this route or use SameSite rules.
+
+Phase 2
+	•	Validate with zod:
+	•	eventId (uuid), workspaceId (string), modifiedAt (ISO), eventType (“WORKSPACE_MODIFIED”)
+	•	Mongo:
+	•	workspace_activity: insert {..., receivedAt: new Date()}
+	•	Indexes: { eventId: 1 } unique, { workspaceId: 1, modifiedAt: -1 }
+	•	workspaces: upsert by workspaceId, set { lastModifiedAt, lastModifiedBy }
+
+7) Deployment path
+	•	Plugin: update jar → flip releaseLink → run release job → train deploy --env prod → restart SZR
+	•	Portal: normal CI/CD
+	•	Config: ship JVM flags + krb5.conf location (and keytab mount if used)
+
+8) Testing strategy
+
+Connectivity
+	•	curl --negotiate -u : -L <portal>/api/events/ping → 204
+	•	Save a workspace → portal logs show event; plugin gets 204
+
+Negatives
+	•	No Kerberos ticket → 401/redirect loop
+	•	Bad JSON → 400
+	•	(Phase 2) Duplicate eventId → no duplicate insert
+
+Integration
+	•	Capture correlation: log eventId, workspaceId both sides
+
+9) Observability & hardening (phase 2)
+	•	Structured logs (eventId, workspaceId, status, latency)
+	•	Plugin retries: exponential backoff on 5xx/timeout; don’t block saves
+	•	Idempotency on server (eventId unique)
+	•	Optional: capture modifiedBy from trusted header/session if platform forwards it
+
+10) Risk register & mitigations
+	•	SPNEGO in container: add Kerberos libs, mount ticket/keytab, JVM flags → validate in dev first
+	•	Redirect POST loss: always GET-prime session then POST using same CookieStore
+	•	CSRF with cookie sessions: exempt route or set appropriate SameSite
+	•	KDC/realm drift: centralize krb5.conf delivery & version it
+
+11) Acceptance criteria (Phase 1 “Done”)
+	•	From plugin host, ping returns 204 via Kerberos.
+	•	Saving a workspace emits one event; portal receives it and returns 204.
+	•	No secrets (HMAC/JWT) in plugin code/config.
+
+⸻
+
+If you want, I can draft:
+	•	the RestTemplateConfig class (HttpClient5 + SPNEGO + CookieStore + redirects), and
+	•	the two Next.js route files (App Router and Pages Router versions)
+so you can drop them in and run.
