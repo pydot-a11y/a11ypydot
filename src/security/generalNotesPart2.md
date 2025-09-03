@@ -1,33 +1,18 @@
-Totally fine—let’s knock out Part 2 (plugin side) so you’re unblocked. I’ll give you paste-ready code + exact steps. You can wire this now; when Part 1 is sorted, it’ll “just work”.
+Great—your plugin layout is perfect to drop Part 2 in. Here’s exactly what to do, step-by-step, tailored to your tree.
 
 ⸻
 
-0) What we’re building (quick)
-	•	A Kerberos/SPNEGO-capable RestTemplate (Apache HttpClient 5, shared CookieStore, redirects).
-	•	An EventEmitter that does GET /api/events/ping (prime) → POST /api/events/workspace-modified (send).
-	•	A hook in your plugin (afterSave preferred; else at the end of beforeSave).
-	•	Minimal retry so user saves aren’t blocked.
-	•	Runtime flags so Kerberos works on your JDK.
+1) Create the packages & files
 
-⸻
+Under src/main/java/com/ms/msde/szr/workspaceplugin/ add:
 
-1) Gradle deps
+com/ms/msde/szr/workspaceplugin/http/RestTemplateConfig.java
+com/ms/msde/szr/workspaceplugin/emit/EventPayloads.java
+com/ms/msde/szr/workspaceplugin/emit/EventEmitter.java
 
-dependencies {
-  implementation 'org.springframework:spring-web:6.1.10'
-  implementation 'org.apache.httpcomponents.client5:httpclient5:5.3.1'
-  // If your environment uses an internal Kerberos provider, ensure it’s on the classpath too
-  // implementation 'com.msjava:jpe-kerberos:<<version>>'   // example; use your real coord
-}
+RestTemplateConfig.java
 
-
-⸻
-
-2) Rest client (SPNEGO + redirects + cookie store)
-
-com/ms/szr/plugin/http/RestTemplateConfig.java
-
-package com.ms.szr.plugin.http;
+package com.ms.msde.szr.workspaceplugin.http;
 
 import org.apache.hc.client5.http.auth.AuthSchemeFactory;
 import org.apache.hc.client5.http.auth.StandardAuthScheme;
@@ -44,31 +29,28 @@ import org.springframework.http.client.HttpComponentsClientHttpRequestFactory;
 import org.springframework.web.client.RestTemplate;
 
 public final class RestTemplateConfig {
-
   private final CookieStore cookieStore = new BasicCookieStore();
   private final RestTemplate restTemplate;
 
   public RestTemplateConfig() {
-    // If your corp provides a Kerberos JGSS provider, install it (safe if absent).
+    // Install corp Kerberos provider if present (safe no-op if absent)
     try {
-      Class.forName("com.ms.security.MSKerberosJgssProvider")
-           .getMethod("install").invoke(null);
-      Class.forName("com.ms.security.MSKerberosConfiguration")
-           .getMethod("setClientConfiguration").invoke(null);
-    } catch (Throwable ignored) {}
+      Class.forName("com.ms.security.MSKerberosJgssProvider").getMethod("install").invoke(null);
+      Class.forName("com.ms.security.MSKerberosConfiguration").getMethod("setClientConfiguration").invoke(null);
+    } catch (Throwable ignore) {}
 
-    Lookup<AuthSchemeFactory> authSchemes = RegistryBuilder.<AuthSchemeFactory>create()
-      .register(StandardAuthScheme.SPNEGO, new SPNegoSchemeFactory(true)) // 'true' strips host port
-      .register(StandardAuthScheme.BASIC, new BasicSchemeFactory())
+    Lookup<AuthSchemeFactory> auth = RegistryBuilder.<AuthSchemeFactory>create()
+      .register(StandardAuthScheme.SPNEGO, new SPNegoSchemeFactory(true))
+      .register(StandardAuthScheme.BASIC,  new BasicSchemeFactory())
       .build();
 
     CloseableHttpClient http = HttpClients.custom()
-      .setDefaultAuthSchemeRegistry(authSchemes)
-      .setRedirectStrategy(new DefaultRedirectStrategy()) // follow 3xx
-      .setDefaultCookieStore(cookieStore)                 // persist session cookie
+      .setDefaultAuthSchemeRegistry(auth)
+      .setRedirectStrategy(new DefaultRedirectStrategy())
+      .setDefaultCookieStore(cookieStore)
       .build();
 
-    HttpComponentsClientHttpRequestFactory rf = new HttpComponentsClientHttpRequestFactory(http);
+    var rf = new HttpComponentsClientHttpRequestFactory(http);
     rf.setConnectTimeout(10_000);
     rf.setReadTimeout(20_000);
 
@@ -79,14 +61,9 @@ public final class RestTemplateConfig {
   public CookieStore cookies() { return cookieStore; }
 }
 
+EventPayloads.java
 
-⸻
-
-3) Payload builder
-
-com/ms/szr/plugin/emit/EventPayloads.java
-
-package com.ms.szr.plugin.emit;
+package com.ms.msde.szr.workspaceplugin.emit;
 
 import java.time.Instant;
 import java.util.UUID;
@@ -102,16 +79,11 @@ public final class EventPayloads {
   }
 }
 
+EventEmitter.java
 
-⸻
+package com.ms.msde.szr.workspaceplugin.emit;
 
-4) Event emitter (GET-prime → POST, with retries)
-
-com/ms/szr/plugin/emit/EventEmitter.java
-
-package com.ms.szr.plugin.emit;
-
-import com.ms.szr.plugin.http.RestTemplateConfig;
+import com.ms.msde.szr.workspaceplugin.http.RestTemplateConfig;
 import org.springframework.http.*;
 import org.springframework.web.client.RestTemplate;
 
@@ -133,19 +105,19 @@ public final class EventEmitter {
     while (true) {
       try {
         prime();
-        String url = base + "/api/events/workspace-modified";
-        String json = EventPayloads.workspaceModifiedJson(workspaceId);
-        HttpHeaders h = new HttpHeaders(); h.setContentType(MediaType.APPLICATION_JSON);
-        HttpEntity<String> req = new HttpEntity<>(json, h);
-        ResponseEntity<Void> res = rest.exchange(url, HttpMethod.POST, req, Void.class);
+        var url = base + "/api/events/workspace-modified";
+        var json = EventPayloads.workspaceModifiedJson(workspaceId);
+        var headers = new HttpHeaders(); headers.setContentType(MediaType.APPLICATION_JSON);
+        var req = new HttpEntity<>(json, headers);
+        var res = rest.exchange(url, HttpMethod.POST, req, Void.class);
         if (!res.getStatusCode().is2xxSuccessful())
           throw new RuntimeException("HTTP " + res.getStatusCode());
         return; // success
       } catch (Exception e) {
         tries++;
         if (tries >= 3) {
-          System.err.println("[SZR plugin] WARN: failed to emit event after retries: " + e.getMessage());
-          return; // do not block the save
+          System.err.println("[SZR plugin] WARN emit failed after retries: " + e.getMessage());
+          return; // do not block save
         }
         try { Thread.sleep(backoff); } catch (InterruptedException ignored) {}
         backoff *= 2;
@@ -154,20 +126,17 @@ public final class EventEmitter {
   }
 }
 
+Update your existing WorkspacePlugin.java
 
-⸻
+Add the emitter and call it at the end of your beforeSave (or move to afterSave if available):
 
-5) Hook it into your plugin
-
-com/ms/szr/plugin/WorkspacePlugin.java (adapt to your package/interface)
-
-package com.ms.szr.plugin;
+package com.ms.msde.szr.workspaceplugin;
 
 import com.structurizr.Workspace;
 import com.structurizr.io.WorkspaceUtils;
 import com.structurizr.plugin.WorkspaceEvent;
 import com.structurizr.plugin.WorkspaceEventListener;
-import com.ms.szr.plugin.emit.EventEmitter;
+import com.ms.msde.szr.workspaceplugin.emit.EventEmitter;
 
 public class WorkspacePlugin implements WorkspaceEventListener {
 
@@ -179,11 +148,11 @@ public class WorkspacePlugin implements WorkspaceEventListener {
   @Override
   public void beforeSave(WorkspaceEvent event) {
     try {
-      // ... your existing permissions/JSON adjustments here ...
+      // ...your existing code...
 
-      // Emit *after* JSON is final. If you have afterSave(), move this there.
       String workspaceId = resolveWorkspaceId(event);
       emitter.emitWorkspaceModified(workspaceId);
+
     } catch (Exception e) {
       e.printStackTrace();
     }
@@ -207,13 +176,37 @@ public class WorkspacePlugin implements WorkspaceEventListener {
   }
 }
 
-If your plugin interface exposes afterSave(WorkspaceEvent), emit there (best: only after a successful save).
 
 ⸻
 
-6) Runtime flags (Kerberos on JDK ≥16)
+2) Gradle: add dependencies & sync
 
-Add to the JVM that runs Structurizr + plugin:
+Edit build.gradle:
+
+repositories {
+    mavenCentral()
+    // if your company uses an internal Nexus/Artifactory, keep that too
+}
+
+dependencies {
+    implementation 'org.springframework:spring-web:6.1.10'
+    implementation 'org.apache.httpcomponents.client5:httpclient5:5.3.1'
+    // implementation 'com.msjava:jpe-kerberos:<version>' // if provided internally
+}
+
+Then fetch deps:
+	•	In IntelliJ: click “Load Gradle Changes”, or
+	•	Terminal: ./gradlew clean build
+
+Yes—you do need to run/sync after editing build.gradle. That downloads the libs and recompiles.
+
+⸻
+
+3) Run configuration?
+
+You usually don’t need a new IntelliJ Run Configuration for the plugin itself, because it’s loaded by Structurizr at runtime. What you do need configured on the Structurizr process (where the plugin runs):
+	•	Env var: SZR_PORTAL_BASE=https://<your-portal-host>
+	•	JVM flags (Kerberos, JDK ≥16):
 
 --add-exports=java.security.jgss/sun.security.jgss=ALL-UNNAMED
 --add-exports=java.security.jgss/sun.security.jgss.spi=ALL-UNNAMED
@@ -223,38 +216,15 @@ Add to the JVM that runs Structurizr + plugin:
 --add-exports=java.base/sun.security.util=ALL-UNNAMED
 -Djavax.security.auth.useSubjectCredsOnly=false
 
-	•	Non-Windows: ensure a TGT (kinit) and point to your realm:
--Djava.security.krb5.conf=/etc/krb5.conf
+
+	•	If not Windows domain: -Djava.security.krb5.conf=/etc/krb5.conf and make sure a TGT exists (kinit/keytab).
+
+If you do want to run a quick local test from IntelliJ, you can create a tiny main() that instantiates EventEmitter and calls emitWorkspaceModified("123") pointing at a mock URL—but that’s optional.
 
 ⸻
 
-7) Config knobs
-	•	Set the portal base URL at runtime:
-	•	Env var: SZR_PORTAL_BASE=https://<your-portal-host>
-	•	If you need to temporarily test without Kerberos (e.g., hitting a mock server), the code still works against plain HTTP endpoints. Just set SZR_PORTAL_BASE to your mock URL.
+4) Build & deploy
+	•	./gradlew build (or your CI job).
+	•	Flip the releaseLink, run the release job, train deploy --env prod, restart Structurizr (per Gregory’s notes).
 
-⸻
-
-8) How to test now (even before Part 1 is fixed)
-	•	Option A (mock server): run a tiny local server that responds 204 to /api/events/ping and /api/events/workspace-modified. Example (Node):
-
-npx http-server # or use a minimal Express app returning 204s for those paths
-
-Set SZR_PORTAL_BASE to that server; save a workspace → see the emitter’s requests in your mock.
-
-	•	Option B (curl as receiver): Use nc -l 4019 or a simple Express app to print requests. Point SZR_PORTAL_BASE to http://localhost:4019.
-
-Once Part 1 is up, just point SZR_PORTAL_BASE back to your portal.
-
-⸻
-
-9) Deploy (when ready)
-	•	Update plugin jar, flip the releaseLink for msde/szr-workspace-plugin.
-	•	Run your release job → train deploy --env prod.
-	•	Restart Structurizr (it picks up the bind-mounted plugin).
-
-⸻
-
-TL;DR
-
-Paste these three classes, add the Gradle deps + JVM flags, set SZR_PORTAL_BASE, and you’re done with Part 2. You can even test against a mock endpoint today; when the portal endpoints come alive, no code changes are needed—only the base URL.
+That’s it. Once Part 1 is reachable, the emitter will start sending ping then workspace-modified automatically on every save.
