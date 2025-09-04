@@ -1,54 +1,88 @@
-package security;
-
-// File: com/ms/msde/szr/workspaceplugin/WorkspacePlugin.java
 package com.ms.msde.szr.workspaceplugin;
 
-import com.ms.msde.szr.workspaceplugin.clients.PortalApiClient;
-import com.ms.msde.szr.workspaceplugin.events.WorkspaceModifiedEvent;
-// ... other imports
+import com.ms.msde.szr.workspaceplugin.emit.EventEmitter;
+import com.structurizr.Workspace;
+import com.structurizr.configuration.User;
+import com.structurizr.io.WorkspaceUtils;
+import com.structurizr.plugin.WorkspaceEvent;
+import com.structurizr.plugin.WorkspaceEventListener;
+import com.structurizr.plugin.WorkspaceProperties;
 
 public class WorkspacePlugin implements WorkspaceEventListener {
 
-    private final PortalApiClient apiClient;
+  private static final String PORTAL_BASE =
+      System.getenv().getOrDefault("SZR_PORTAL_BASE", "https://szr.portal.internal");
 
-    public WorkspacePlugin() {
-        this.apiClient = new PortalApiClient();
+  private final EventEmitter emitter = new EventEmitter(PORTAL_BASE);
+
+  @Override
+  public void beforeSave(WorkspaceEvent event) {
+    try {
+      // --- Your existing code: keep current users on save ---
+      WorkspaceProperties currentProperties = event.getWorkspaceProperties();
+      var currentUsers = currentProperties.getUsers();
+      // If the workspace hasn't yet had permissions initialised, let them be initialised in this request
+      if (currentUsers == null || currentUsers.isEmpty()) {
+        return;
+      }
+
+      String newJson = event.getJson();
+      Workspace newWorkspace = WorkspaceUtils.fromJson(newJson);
+
+      // Clear then re-add current users so they persist
+      newWorkspace.getConfiguration().clearUsers();
+      for (User user : currentUsers) {
+        newWorkspace.getConfiguration().addUser(user);
+      }
+
+      // Write back the modified JSON
+      newJson = WorkspaceUtils.toJson(newWorkspace, /*indentOutput*/ false);
+      event.setJson(newJson);
+
+      // --- New code: emit "workspace modified" event to the portal ---
+      String workspaceId = resolveWorkspaceId(event, newWorkspace);
+      emitter.emitWorkspaceModified(workspaceId);
+
+    } catch (Exception e) {
+      e.printStackTrace();
     }
-    
-    // We recommend using an `afterSave` hook if one is available.
-    // It's safer because it confirms the save was successful before sending the event.
-    // If only `beforeSave` is available, use that.
-    @Override
-    public void afterSave(WorkspaceEvent event) {
-        try {
-            // Placeholder: This is the hardest part. You must find how to get the user's ID/name.
-            String modifiedBy = determineModifiedBy(event); 
-            
-            WorkspaceModifiedEvent modifiedEvent = new WorkspaceModifiedEvent(
-                String.valueOf(event.getWorkspaceId()),
-                modifiedBy
-            );
+  }
 
-            // Send asynchronously to avoid blocking the main save thread.
-            new Thread(() -> apiClient.sendEvent(modifiedEvent)).start();
-
-        } catch (Exception e) {
-            // Log but do not throw, so we don't break the main Structurizr save flow.
-            System.err.println("Failed to send workspace modification event: " + e.getMessage());
-            e.printStackTrace();
-        }
+  /**
+   * Resolve the workspaceId from the event (preferred) or from the Workspace object.
+   */
+  private String resolveWorkspaceId(WorkspaceEvent event, Workspace wsFromJson) {
+    // Try event.getWorkspaceId() if the plugin API exposes it
+    try {
+      var m = event.getClass().getMethod("getWorkspaceId");
+      Object v = m.invoke(event);
+      if (v != null) {
+        return String.valueOf(v);
+      }
+    } catch (Exception ignore) {
+      // fall through
     }
 
-    private String determineModifiedBy(WorkspaceEvent event) {
-        // TODO: This is a critical placeholder. You need to investigate the `WorkspaceEvent`
-        // or other Structurizr context to find the actual user's identity.
-        // For now, we return a placeholder.
-        return "user.from.plugin.context";
+    // Try Workspace.getId()
+    try {
+      Object id = wsFromJson.getClass().getMethod("getId").invoke(wsFromJson);
+      if (id != null) {
+        return String.valueOf(id);
+      }
+    } catch (Exception ignore) {
+      // fall through
     }
 
-    // Your existing `beforeSave` logic from the screenshot remains here.
-    @Override
-    public void beforeSave(WorkspaceEvent event) {
-        // ... your existing code ...
+    // Try Workspace.getWorkspaceId() (some versions use this)
+    try {
+      Object id = wsFromJson.getClass().getMethod("getWorkspaceId").invoke(wsFromJson);
+      if (id != null) {
+        return String.valueOf(id);
+      }
+    } catch (Exception ignore) {
+      // fall through
     }
+
+    throw new IllegalStateException("Unable to resolve workspaceId from event or workspace JSON.");
+  }
 }

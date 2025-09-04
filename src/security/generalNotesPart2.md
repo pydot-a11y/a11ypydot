@@ -228,3 +228,16 @@ If you do want to run a quick local test from IntelliJ, you can create a tiny ma
 	•	Flip the releaseLink, run the release job, train deploy --env prod, restart Structurizr (per Gregory’s notes).
 
 That’s it. Once Part 1 is reachable, the emitter will start sending ping then workspace-modified automatically on every save.
+
+3) Run configuration?
+
+You usually don’t need a new IntelliJ Run Configuration for the plugin itself, because it’s loaded by Structurizr at runtime. What you do need configured on the Structurizr process (where the plugin runs):
+	•	Env var: SZR_PORTAL_BASE=https://<your-portal-host>
+	•	JVM flags (Kerberos, JDK ≥16):
+--add-exports=java.security.jgss/sun.security.jgss=ALL-UNNAMED
+--add-exports=java.security.jgss/sun.security.jgss.spi=ALL-UNNAMED
+--add-exports=java.security.jgss/sun.security.krb5=ALL-UNNAMED
+--add-exports=java.security.jgss/sun.security.krb5.internal=ALL-UNNAMED
+--add-exports=java.security.jgss/sun.security.krb5.internal.ccache=ALL-UNNAMED
+--add-exports=java.base/sun.security.util=ALL-UNNAMED
+-Djavax.security.auth.useSubjectCredsOnly=false
