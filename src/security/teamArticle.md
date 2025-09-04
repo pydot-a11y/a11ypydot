@@ -105,3 +105,9 @@ Managers: [Insert managers here]
 ⸻
 
 Would you like me to suggest a crisp one-liner tagline to sit right at the top (something like “From translation to AI-powered automation, ETS is redefining enterprise architecture tooling”) — or keep it clean and formal like the Honeycomb article?
+
+Hi Denis,
+
+I’ve prepared a document titled “Project Spotlight: Enterprise Architecture” in Jive as part of Turntabl’s monthly Project Spotlight series. Could you please review it and let me know if I can go ahead and share it with the Turntabl marketing team for inclusion in this month’s newsletter, or if you’d like any changes made?
+
+Thank you,
