@@ -186,3 +186,19 @@ Architecture Strategy
 ⸻
 
 👉 Would you like me to also prepare a final version with hashtags + tagging lines (as per your manager’s point #9 and #10) so it’s ready for Jive and LinkedIn?
+
+
+
+
+Architecture Strategy
+Angela partnered with the team to develop a POC for visualizing the firm-wide architecture strategy in a maintainable way. Traditionally, this strategy lived in PowerPoints, whiteboards, and Visio diagrams, but the team trialed documenting it using architecture-as-code tooling.
+
+Yoofi visualized the firm-wide architecture strategy with Structurizr Image Rendering, showing the various initiatives and supporting tools. The visualization highlighted numerous connections between strategy, initiatives, and tooling, leveraging Structurizr’s graph-display structure. This exercise surfaced hard dependencies, accelerators, deviations, and informers between strategy elements — providing a clearer, more actionable view of the enterprise strategy.
+
+⸻
+
+3. CALM Section – OSFF Mention
+
+Yes, absolutely worth mentioning. It connects your team’s external engagement with the open-source community, showing visibility and leadership. You could add this sentence at the end of the CALM section (just before the links):
+
+“In June 2025, two members of the team attended the Open Source in Finance Forum (OSFF) in London, engaging directly with CALM contributors and industry peers to share insights and strengthen collaboration.”
