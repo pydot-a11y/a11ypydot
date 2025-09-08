@@ -111,3 +111,78 @@ Hi Denis,
 I’ve prepared a document titled “Project Spotlight: Enterprise Architecture” in Jive as part of Turntabl’s monthly Project Spotlight series. Could you please review it and let me know if I can go ahead and share it with the Turntabl marketing team for inclusion in this month’s newsletter, or if you’d like any changes made?
 
 Thank you,
+
+
+
+Got it ✅ — let’s take this step by step so you can just copy/paste each change into the existing article. I’ll outline the section, where the change should go, and the exact wording.
+
+⸻
+
+1. Title Change
+	•	Current: Enterprise Architecture Tooling: Translating, Automating, and Elevating Architecture Practices
+	•	Replace with:
+What Do Enterprise Architecture and Turntabl Have in Common? Innovation!
+
+⸻
+
+2. C4TS Section – Remove Breeze & Add Link
+	•	Where: Under Format Translation Service
+	•	Edit to:
+“Automates translation across formats such as C4 DSL, Mermaid, PlantUML, JSON, PNG, and SVG, improving interoperability across platforms.”
+	•	Then add at the end of the C4TS section:
+“For more details, see the C4TS Swagger documentation.”
+
+⸻
+
+3. CALM Section – Update Status & Add Links
+	•	Where: In CALM section intro, after describing adoption.
+	•	Insert this sentence:
+“Currently, the team supports development, testing, and validation with clients and CALM contributors, with production release pending.”
+	•	Conclude CALM section with:
+“Learn more in the FINOS CALM documentation and the Architecture as Code repository.”
+
+⸻
+
+4. PaC Section – Update Wording
+	•	Where: First line of PaC section.
+	•	Replace with:
+“We are currently in the mapping stage of TCRs (previously referred to as [old name]) into CALM documents.”
+
+⸻
+
+5. Structurizr DSL Generator Section – Rephrase & Add Link
+	•	Where: First sentence of Structurizr DSL Generator description.
+	•	Change:
+“Analyzes repositories and generates…” → “Analyzes source code repositories and generates…”
+	•	Conclude section with:
+“Try the service here: Structurizr DSL Generator.”
+
+⸻
+
+6. C4 Reviewer Section – Add Link
+	•	At the end of C4 Reviewer section, add:
+“Try the service here: C4 Reviewer.”
+
+⸻
+
+7. Architecture Strategy Insert
+	•	New Subsection, before “Challenges and Contributions.”
+	•	Add:
+Architecture Strategy
+“As part of strategy, Yoofi introduced a short but impactful exercise to help visualize business capabilities and align strategy with technology programs. This continues to guide how we connect architecture outcomes to business priorities.”
+
+⸻
+
+8. Team Section – Rephrase Acknowledgment
+	•	Replace with:
+“This work is the result of the dedication and expertise of the Enterprise Architecture ETS Tooling team. The team is comprised of [list names], achieved under the incredible guidance of [Manager 1] and [Manager 2], who continue to support and steer these initiatives.”
+
+⸻
+
+9. Ending Statement – Forward Looking
+	•	Replace last paragraph with:
+“With C4TS at its core, and expanded capabilities through CALM, PaC, and Ai-rchitect, the Enterprise Architecture ETS Tooling team is shaping the future of architecture at Turntabl. By blending automation, compliance, and intelligence, we are redefining how innovation happens across the firm.”
+
+⸻
+
+👉 Would you like me to also prepare a final version with hashtags + tagging lines (as per your manager’s point #9 and #10) so it’s ready for Jive and LinkedIn?
