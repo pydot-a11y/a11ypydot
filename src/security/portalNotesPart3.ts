@@ -122,3 +122,31 @@ setGlobalDispatcher(new Agent());
 MONGO_ENABLED=true
 MONGO_DB_NAME=d_workspaces
 MONGO_URI=mongodb://<principal-encoded>@<host>:27000/?authMechanism=GSSAPI&authSource=%24external&authMechanismProperties=SERVICE_NAME:<your_service>&tls=true&tlsInsecure=true
+
+
+
+// ---
+
+// ## 7. Brief Explanation of Code Snippets
+
+// - **`validation.ts`**: Zod schema ensures only valid `WORKSPACE_MODIFIED` events are accepted. Prevents malformed input.  
+// - **`getDb.ts`**: Creates and reuses a single MongoDB client connection (with Kerberos support).  
+// - **`debug/db.ts`**: Simple API to confirm MongoDB connectivity and check if the DB is reachable.  
+// - **`ping.ts`**: Lightweight endpoint to verify that Kerberos/SSO auth is working through the proxy.  
+// - **`workspace-modified.ts`**:  
+//   - Validates payload  
+//   - Auto-fills `modifiedBy` if proxy header exists  
+//   - Ensures uniqueness of `eventId`  
+//   - Inserts into activity log  
+//   - Upserts `lastModifiedAt` into workspaces collection  
+
+// ---
+
+// ✅ With your new write access, I’d say you are **ready to retest and then raise the PR**.  
+// Inline comments should mention:
+// - DB connection may fail if Kerberos deps aren’t installed in env.
+// - DB writes require proper access rights (which you just got).
+
+// ---
+
+// Would you like me to draft the **inline PR description text** (summary + checklist) that you can paste into GitHub/Jira so reviewers immediately know what’s changed and how to test it?
