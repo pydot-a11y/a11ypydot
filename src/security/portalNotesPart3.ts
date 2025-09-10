@@ -71,15 +71,15 @@ export default async function handler(_req: NextApiRequest, res: NextApiResponse
 //   --data-binary '{"eventId":"11111111-1111-1111-1111-111111111111","eventType":"WORKSPACE_MODIFIED","workspaceId":"123","modifiedAt":"2025-09-03T12:00:00Z"}'
 
 
-// src/pages/api/debug/db.ts
 import type { NextApiRequest, NextApiResponse } from "next";
 
-console.log("[debug/db] route file loaded");
+// Prove this file is actually loaded:
+console.log("[debug/db] file loaded");
 
 export default async function handler(_req: NextApiRequest, res: NextApiResponse) {
   try {
+    // If mongodb isn’t installed, this throws and we catch it.
     const { MongoClient } = await import("mongodb");
-
     const uri = process.env.MONGO_URI || "";
     const dbName = process.env.MONGO_DB_NAME || "d_workspaces";
 
@@ -99,6 +99,8 @@ export default async function handler(_req: NextApiRequest, res: NextApiResponse
   } catch (e: any) {
     const msg = e?.message || String(e);
     console.error("[debug/db] error:", msg);
-    res.status(500).json({ error: msg });
+    // FORCE JSON so curl shows it (no more plain text).
+    res.setHeader("content-type", "application/json; charset=utf-8");
+    res.status(500).end(JSON.stringify({ error: msg }));
   }
 }
