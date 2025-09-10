@@ -74,18 +74,17 @@ export default async function handler(_req: NextApiRequest, res: NextApiResponse
 // src/pages/api/debug/db.ts
 import type { NextApiRequest, NextApiResponse } from "next";
 
+console.log("[debug/db] route file loaded");
+
 export default async function handler(_req: NextApiRequest, res: NextApiResponse) {
   try {
-    // Lazy import so if mongodb isn’t installed, we catch that too
     const { MongoClient } = await import("mongodb");
 
     const uri = process.env.MONGO_URI || "";
     const dbName = process.env.MONGO_DB_NAME || "d_workspaces";
 
-    // Log minimal info (don’t print full URI)
-    console.log("[debug/db] uri len:", uri.length, "db:", dbName);
+    console.log("[debug/db] connecting", { uriLen: uri.length, dbName });
 
-    // Tight timeouts so we fail fast & return a message
     const client = new MongoClient(uri, {
       maxPoolSize: 5,
       connectTimeoutMS: 10000,
@@ -96,13 +95,10 @@ export default async function handler(_req: NextApiRequest, res: NextApiResponse
     const db = client.db(dbName);
     const ok = await db.command({ ping: 1 });
 
-    // If we got here, the Kerberos/TLS chain succeeded
     res.status(200).json({ ok, db: dbName });
   } catch (e: any) {
     const msg = e?.message || String(e);
-    const stack = e?.stack || "";
     console.error("[debug/db] error:", msg);
-    // Return the message so `curl` shows it
-    res.status(500).json({ error: msg, stack });
+    res.status(500).json({ error: msg });
   }
 }
