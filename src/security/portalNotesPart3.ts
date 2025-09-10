@@ -71,9 +71,38 @@ export default async function handler(_req: NextApiRequest, res: NextApiResponse
 //   --data-binary '{"eventId":"11111111-1111-1111-1111-111111111111","eventType":"WORKSPACE_MODIFIED","workspaceId":"123","modifiedAt":"2025-09-03T12:00:00Z"}'
 
 
+// src/pages/api/debug/db.ts
 import type { NextApiRequest, NextApiResponse } from "next";
-import { getDb } from "../../../server/api/db";
+
 export default async function handler(_req: NextApiRequest, res: NextApiResponse) {
-  try { const db = await getDb(); const ok = await db.command({ ping:1 }); res.status(200).json({ ok, db: db.databaseName }); }
-  catch (e:any) { res.status(500).json({ error: String(e?.message || e) }); }
+  try {
+    // Lazy import so if mongodb isn’t installed, we catch that too
+    const { MongoClient } = await import("mongodb");
+
+    const uri = process.env.MONGO_URI || "";
+    const dbName = process.env.MONGO_DB_NAME || "d_workspaces";
+
+    // Log minimal info (don’t print full URI)
+    console.log("[debug/db] uri len:", uri.length, "db:", dbName);
+
+    // Tight timeouts so we fail fast & return a message
+    const client = new MongoClient(uri, {
+      maxPoolSize: 5,
+      connectTimeoutMS: 10000,
+      serverSelectionTimeoutMS: 10000,
+    });
+
+    await client.connect();
+    const db = client.db(dbName);
+    const ok = await db.command({ ping: 1 });
+
+    // If we got here, the Kerberos/TLS chain succeeded
+    res.status(200).json({ ok, db: dbName });
+  } catch (e: any) {
+    const msg = e?.message || String(e);
+    const stack = e?.stack || "";
+    console.error("[debug/db] error:", msg);
+    // Return the message so `curl` shows it
+    res.status(500).json({ error: msg, stack });
+  }
 }
