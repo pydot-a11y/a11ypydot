@@ -104,3 +104,21 @@ export default async function handler(_req: NextApiRequest, res: NextApiResponse
     res.status(500).end(JSON.stringify({ error: msg }));
   }
 }
+
+//At the very top of src/pages/api/debug/db.ts, before imports that might use fetch:
+// Force NO proxy for this route (and Mongo)
+process.env.HTTP_PROXY = "";
+process.env.HTTPS_PROXY = "";
+process.env.NO_PROXY = "localhost,127.0.0.1,.ms.com";
+
+
+// If your app uses undici’s global proxy (via setGlobalDispatcher) or initializes https-proxy-agent globally, add this too inside the handler (or once in this file) to reset undici just for this route:
+
+// Optional: reset undici global dispatcher to default (no proxy)
+import { setGlobalDispatcher, Agent } from "undici";
+setGlobalDispatcher(new Agent());
+
+
+MONGO_ENABLED=true
+MONGO_DB_NAME=d_workspaces
+MONGO_URI=mongodb://<principal-encoded>@<host>:27000/?authMechanism=GSSAPI&authSource=%24external&authMechanismProperties=SERVICE_NAME:<your_service>&tls=true&tlsInsecure=true
