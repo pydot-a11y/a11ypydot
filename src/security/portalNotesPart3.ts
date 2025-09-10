@@ -69,3 +69,11 @@ export default async function handler(_req: NextApiRequest, res: NextApiResponse
 // curl -i -X POST http://localhost:4015/api/events/workspace-modified \
 //   -H "Content-Type: application/json" \
 //   --data-binary '{"eventId":"11111111-1111-1111-1111-111111111111","eventType":"WORKSPACE_MODIFIED","workspaceId":"123","modifiedAt":"2025-09-03T12:00:00Z"}'
+
+
+import type { NextApiRequest, NextApiResponse } from "next";
+import { getDb } from "../../../server/api/db";
+export default async function handler(_req: NextApiRequest, res: NextApiResponse) {
+  try { const db = await getDb(); const ok = await db.command({ ping:1 }); res.status(200).json({ ok, db: db.databaseName }); }
+  catch (e:any) { res.status(500).json({ error: String(e?.message || e) }); }
+}
