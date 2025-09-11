@@ -202,3 +202,19 @@ Yoofi visualized the firm-wide architecture strategy with Structurizr Image Rend
 Yes, absolutely worth mentioning. It connects your team’s external engagement with the open-source community, showing visibility and leadership. You could add this sentence at the end of the CALM section (just before the links):
 
 “In June 2025, two members of the team attended the Open Source in Finance Forum (OSFF) in London, engaging directly with CALM contributors and industry peers to share insights and strengthen collaboration.”
+
+
+
+
+Summary
+The Enterprise Architecture ETS Tooling team is leading efforts to simplify, standardize, and innovate architecture practices across the firm.
+
+The Enterprise Architecture ETS Tooling team has been busy pushing the boundaries of how we manage and share architecture across the firm.
+
+Our main product, C4TS (C4 Translation Service), makes it easier to translate models, generate images, and integrate directly into codebases through Java and Python libraries. We’ve also built analytics around usage to understand adoption and guide improvements.
+
+On top of this, we’re working with CALM to bring more consistency and compliance into architecture, and with Policy as Code to automate governance. Through our Ai-rchitect platform, we’ve delivered two GenAI-powered tools — the Structurizr DSL Generator and the C4 Reviewer — helping teams generate documentation faster and raise the quality of their architectural practices.
+
+This year, we also trialed new ways to visualize the firm-wide strategy using architecture-as-code, and two of our team members represented us at the Open Source in Finance Forum (OSFF) in London to share insights with the wider community.
+
+At the core, our work is about reducing manual effort, improving transparency, and making architecture easier to use and maintain — while showing how innovation happens at Turntabl.
