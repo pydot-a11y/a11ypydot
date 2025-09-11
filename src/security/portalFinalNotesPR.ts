@@ -77,3 +77,137 @@ TRUSTED_USER_HEADER=x-authenticated-user
 // 	•	Security (for header & proxy note)
 
 // If you want, I can draft the full PR body text verbatim from the bullets above; just say the word.
+
+
+
+import type { NextApiRequest, NextApiResponse } from 'next';
+import { MongoClient } from 'mongodb';
+
+process.env.HTTP_PROXY = '';
+process.env.HTTPS_PROXY = '';
+process.env.NO_PROXY = 'localhost,127.0.0.1,.ms.com';
+
+export default async function handler(_req: NextApiRequest, res: NextApiResponse) {
+  res.setHeader('content-type', 'application/json; charset=utf-8');
+
+  try {
+    const uri = process.env.MONGO_URI;
+    const dbName = process.env.MONGO_DB_NAME || 'd_workspaces';
+    if (!uri) {
+      res.status(500).end(JSON.stringify({ error: 'MONGO_URI not set' }));
+      return;
+    }
+
+    const client = new MongoClient(uri, {
+      maxPoolSize: 2,
+      connectTimeoutMS: 12_000,
+      serverSelectionTimeoutMS: 12_000,
+    });
+
+    await client.connect();
+    // ok is a plain object (not any) returned by the driver
+    const ok = await client.db(dbName).command({ ping: 1 });
+    await client.close();
+
+    res.status(200).end(JSON.stringify({ ok, db: dbName }));
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    res.status(500).end(JSON.stringify({ error: msg }));
+  }
+}
+
+
+
+import type { NextApiRequest, NextApiResponse } from 'next';
+import type { MongoServerError } from 'mongodb';
+import { WorkspaceModifiedSchema, type WorkspaceModified } from '../validation';
+import { getDb } from '../db';
+
+const MONGO_ENABLED = process.env.MONGO_ENABLED === 'true';
+const TRUSTED_USER_HEADER = (process.env.TRUSTED_USER_HEADER || 'x-authenticated-user').toLowerCase();
+
+function firstHeaderValue(h: unknown): string | undefined {
+  if (typeof h === 'string') return h;
+  if (Array.isArray(h) && typeof h[0] === 'string') return h[0];
+  return undefined;
+}
+
+function isMongoServerError(e: unknown): e is MongoServerError {
+  return typeof e === 'object' && e !== null && 'code' in e;
+}
+
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+  if (req.method !== 'POST') return res.status(405).json({ message: 'Method Not Allowed' });
+
+  const ct = String(req.headers['content-type'] || '');
+  if (!ct.includes('application/json')) return res.status(415).json({ message: 'Content-Type must be application/json' });
+
+  // Safely materialize a mutable object for validation (no 'any')
+  const bodyUnknown: unknown = req.body;
+  const candidate: Record<string, unknown> =
+    bodyUnknown && typeof bodyUnknown === 'object'
+      ? (bodyUnknown as Record<string, unknown>)
+      : {};
+
+  // Auto-fill modifiedBy from trusted header if not provided
+  const headerUser = firstHeaderValue(req.headers[TRUSTED_USER_HEADER]);
+  if (headerUser !== undefined && candidate.modifiedBy === undefined) {
+    candidate.modifiedBy = headerUser;
+  }
+
+  const parsed = WorkspaceModifiedSchema.safeParse(candidate);
+  if (!parsed.success) {
+    return res.status(400).json({ message: 'Invalid JSON', errors: parsed.error.issues });
+  }
+
+  const ev: WorkspaceModified = parsed.data;
+
+  if (!MONGO_ENABLED) return res.status(204).end();
+
+  try {
+    const db = await getDb();
+    const activity = db.collection('workspace_activity');
+    const workspaces = db.collection('workspaces');
+
+    // Create indexes (ignore races)
+    try {
+      await activity.createIndex({ eventId: 1 }, { unique: true });
+    } catch {
+      /* no-op */
+    }
+    try {
+      await workspaces.createIndex({ workspaceId: 1 }, { unique: true });
+    } catch {
+      /* no-op */
+    }
+
+    // Idempotent insert into activity
+    try {
+      await activity.insertOne({ ...ev, receivedAt: new Date() });
+    } catch (e: unknown) {
+      if (isMongoServerError(e) && e.code === 11000) {
+        // duplicate eventId -> already processed
+        return res.status(204).end();
+      }
+      return res.status(500).json({ message: 'DB insert failed' });
+    }
+
+    // Upsert latest modified info
+    await workspaces.updateOne(
+      { workspaceId: ev.workspaceId },
+      {
+        $set: {
+          workspaceId: ev.workspaceId,
+          lastModifiedAt: new Date(ev.modifiedAt),
+          ...(ev.modifiedBy ? { lastModifiedBy: ev.modifiedBy } : {}),
+        },
+      },
+      { upsert: true }
+    );
+
+    return res.status(204).end();
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return res.status(500).json({ message: 'Server error', error: msg });
+  }
+}
