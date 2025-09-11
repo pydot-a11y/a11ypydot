@@ -118,81 +118,97 @@ export default async function handler(_req: NextApiRequest, res: NextApiResponse
 
 
 
-import type { NextApiRequest, NextApiResponse } from 'next';
-import type { MongoServerError } from 'mongodb';
+iimport type { NextApiRequest, NextApiResponse } from 'next';
 import { WorkspaceModifiedSchema, type WorkspaceModified } from '../validation';
 import { getDb } from '../db';
 
+// Feature flag to allow rolling out DB writes
 const MONGO_ENABLED = process.env.MONGO_ENABLED === 'true';
+
+// Header that a proxy (Kerberos/OIDC layer) may inject with the authenticated user
 const TRUSTED_USER_HEADER = (process.env.TRUSTED_USER_HEADER || 'x-authenticated-user').toLowerCase();
 
+/** Safe helper: get first header value as string, or undefined */
 function firstHeaderValue(h: unknown): string | undefined {
   if (typeof h === 'string') return h;
   if (Array.isArray(h) && typeof h[0] === 'string') return h[0];
   return undefined;
 }
 
-function isMongoServerError(e: unknown): e is MongoServerError {
+/** Narrow unknown to an Error to safely read .message */
+function asError(e: unknown): Error | null {
+  return e instanceof Error ? e : null;
+}
+
+/** Narrow unknown to an object with numeric .code (Mongo duplicate key uses 11000) */
+function hasMongoCode(e: unknown): e is { code: number } {
   return typeof e === 'object' && e !== null && 'code' in e;
 }
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+  // Only POST is allowed
   if (req.method !== 'POST') return res.status(405).json({ message: 'Method Not Allowed' });
 
+  // Require JSON payload
   const ct = String(req.headers['content-type'] || '');
-  if (!ct.includes('application/json')) return res.status(415).json({ message: 'Content-Type must be application/json' });
+  if (!ct.includes('application/json')) {
+    return res.status(415).json({ message: 'Content-Type must be application/json' });
+  }
 
-  // Safely materialize a mutable object for validation (no 'any')
+  // ── Build a safe "candidate" object to validate ───────────────────────────────
+  // We call it "candidate" because it is the *candidate payload* we intend to validate.
+  // Using Record<string, unknown> prevents `any` from leaking in and tripping ESLint.
   const bodyUnknown: unknown = req.body;
   const candidate: Record<string, unknown> =
     bodyUnknown && typeof bodyUnknown === 'object'
       ? (bodyUnknown as Record<string, unknown>)
       : {};
 
-  // Auto-fill modifiedBy from trusted header if not provided
+  // If a trusted proxy injected the user, fill modifiedBy when the client didn't
   const headerUser = firstHeaderValue(req.headers[TRUSTED_USER_HEADER]);
   if (headerUser !== undefined && candidate.modifiedBy === undefined) {
     candidate.modifiedBy = headerUser;
   }
 
+  // Validate & coerce to the typed event
   const parsed = WorkspaceModifiedSchema.safeParse(candidate);
   if (!parsed.success) {
     return res.status(400).json({ message: 'Invalid JSON', errors: parsed.error.issues });
   }
-
   const ev: WorkspaceModified = parsed.data;
 
+  // If DB writes are disabled, we still return 204 to keep the plugin happy
   if (!MONGO_ENABLED) return res.status(204).end();
 
+  // ── Persist to MongoDB (idempotent) ───────────────────────────────────────────
   try {
     const db = await getDb();
-    const activity = db.collection('workspace_activity');
-    const workspaces = db.collection('workspaces');
+    const activity = db.collection('workspace_activity'); // audit log
+    const workspaces = db.collection('workspaces');       // current state
 
-    // Create indexes (ignore races)
+    // Best-effort indexes; ignore races
     try {
       await activity.createIndex({ eventId: 1 }, { unique: true });
     } catch {
-      /* no-op */
+      /* noop */
     }
     try {
       await workspaces.createIndex({ workspaceId: 1 }, { unique: true });
     } catch {
-      /* no-op */
+      /* noop */
     }
 
-    // Idempotent insert into activity
+    // Insert activity row once (idempotent on eventId)
     try {
       await activity.insertOne({ ...ev, receivedAt: new Date() });
     } catch (e: unknown) {
-      if (isMongoServerError(e) && e.code === 11000) {
-        // duplicate eventId -> already processed
-        return res.status(204).end();
-      }
-      return res.status(500).json({ message: 'DB insert failed' });
+      // Duplicate eventId? Treat as already processed → 204
+      if (hasMongoCode(e) && e.code === 11000) return res.status(204).end();
+      const err = asError(e);
+      return res.status(500).json({ message: 'DB insert failed', error: err ? err.message : String(e) });
     }
 
-    // Upsert latest modified info
+    // Upsert "last modified" into workspaces
     await workspaces.updateOne(
       { workspaceId: ev.workspaceId },
       {
@@ -206,8 +222,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     );
 
     return res.status(204).end();
-  } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : String(err);
-    return res.status(500).json({ message: 'Server error', error: msg });
+  } catch (e: unknown) {
+    const err = asError(e);
+    return res.status(500).json({ message: 'Server error', error: err ? err.message : String(e) });
   }
 }
