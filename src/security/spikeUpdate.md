@@ -73,3 +73,12 @@ I’m a software engineer with over five years of experience delivering impactfu
 • I’m especially passionate about making tech more inclusive. My current focus explores how AI can be embedded into the SDLC to improve accessibility and developer experience by design. I regularly share my work through open-source tools, internal demos, and conference presentations.
 
 • Outside of work, I serve as Chairperson for PyCon Ghana 2025 and volunteer with PyLadies Ghana, IndabaX, and other community-led movements. Whether I’m mentoring, leading, or learning something new (like French), I believe in showing up fully—and helping others do the same.
+
+
+ I’m a backend-focused software engineer with over four years of experience building scalable, efficient, and high-performing systems. I specialize in Java, Spring Boot, Spring Cloud, and SQL/MongoDB, with a growing interest in system architecture. My long-term goal is to become a Software Architect, and I approach every project with that mindset — balancing design, performance, and reliability.
+
+• I’ve become the go-to person on my team for navigating domain-specific challenges within Morgan Stanley’s complex environment. Whether it’s resolving deep-rooted issues, unblocking teammates, or improving existing systems, I enjoy stepping in, finding clarity, and delivering solid solutions. My collaborative approach and strong understanding of the domain make me a key resource across multiple initiatives.
+
+• I’m deeply committed to writing clean, maintainable code, and I thrive in Agile environments where I can continuously learn and grow. I bring structure, patience, and a strong sense of ownership to the teams I work with — making sure we not only ship on time, but build systems we’re proud of.
+
+• Outside of work, I’m passionate about staying current with architecture trends and constantly refining my skills. I believe that great software is as much about people as it is about code — and I strive to be a teammate others can count on.
