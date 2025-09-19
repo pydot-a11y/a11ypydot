@@ -65,3 +65,11 @@ Spike Outcome
 👉 This way, your spike ticket shows what you explored, what you chose, what changed (JWT → Kerberos), and where you landed.
 
 Would you like me to also draft a short “lessons learned” paragraph you can add at the bottom of the spike (something like: “Escalating early could have unblocked Kerberos faster”) so you frame the delay as a growth point rather than a weakness?
+
+I’m a software engineer with over five years of experience delivering impactful, production-ready software across diverse stacks. At Morgan Stanley, I’ve contributed to enterprise systems using Java Spring Boot and React, while leading engineering efforts that bridge clean architecture, great design, and solid team collaboration.
+
+• From designing seamless user flows in Figma to building APIs that power real-time systems, I enjoy taking ideas from concept to code. I’m driven by clarity, structure, and meaningful results—and I bring that into every project, sprint, and team I work with.
+
+• I’m especially passionate about making tech more inclusive. My current focus explores how AI can be embedded into the SDLC to improve accessibility and developer experience by design. I regularly share my work through open-source tools, internal demos, and conference presentations.
+
+• Outside of work, I serve as Chairperson for PyCon Ghana 2025 and volunteer with PyLadies Ghana, IndabaX, and other community-led movements. Whether I’m mentoring, leading, or learning something new (like French), I believe in showing up fully—and helping others do the same.
