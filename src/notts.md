@@ -197,10 +197,11 @@ Iterate and Gather Feedback: As these features are developed, continuously gathe
 This structured breakdown should help in pinpointing the most critical areas and formulating a clear path forward. You have a strong foundation of user feedback to build upon!
 
 
-Hi Denis,
-
-Hope you’re doing well.
-
-Would it be possible to reschedule today’s one-to-one? I’d like to come better prepared, but I’m currently tied up with some urgent bug fixes and haven’t had the chance to properly prepare.
-
-Apologies for the short notice and any inconvenience caused. Please let me know what works best for you.
+Hi Micaiah,
+Hope you’re doing great, and kudos on leading this month’s masterclass! 🙌🏾
+ 
+Just a quick one, for visibility and acknowledgment purposes, could you kindly add me as an optional guest to the calendar invite for your session? 
+ 
+Also, if possible, please add me as a collaborator on the masterclass form you shared.
+ 
+Looking forward to your session and thanks again for taking this on!
