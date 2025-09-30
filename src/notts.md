@@ -197,11 +197,43 @@ Iterate and Gather Feedback: As these features are developed, continuously gathe
 This structured breakdown should help in pinpointing the most critical areas and formulating a clear path forward. You have a strong foundation of user feedback to build upon!
 
 
-Hi Micaiah,
-Hope you’re doing great, and kudos on leading this month’s masterclass! 🙌🏾
- 
-Just a quick one, for visibility and acknowledgment purposes, could you kindly add me as an optional guest to the calendar invite for your session? 
- 
-Also, if possible, please add me as a collaborator on the masterclass form you shared.
- 
-Looking forward to your session and thanks again for taking this on!
+Join Zoom Meeting
+https://morganstanley.zoom.us/j/3064916736
+
+
+Hi Raymond,
+
+I’d like to set up a quick 1:1 this week just to check in and hear directly from you. I’ve added a slot to your calendar—feel free to let me know if it doesn’t work so I can reschedule.
+
+Looking forward to our chat!
+
+Hi Kassim,
+
+I’d like to set up a quick 1:1 this week just to check in and hear directly from you. I’ve added a slot to your calendar—feel free to let me know if it doesn’t work so I can reschedule.
+
+Looking forward to our chat!
+
+Hi Konadu,
+
+I’ve scheduled a short 1:1 with you this week—just want to hear your thoughts and get your input directly. If the time doesn’t work for you, let me know and I’ll move it around.
+
+Appreciate it, and see you soon!
+
+
+Hi Elisha,
+ 
+I’d like to set up a quick 1:1 this week just to check in and hear directly from you. I’ve added a slot to your calendar, feel free to let me know if it doesn’t work so I can reschedule.
+ 
+Looking forward to our chat!
+
+Raymond x Dorothy
+Wed 01/10/25 11:30 - 11:45
+
+Kassim x Dorothy
+Wed 01/10/25 11:50 - 12:05
+
+Elisha x Dorothy
+Wed 01/10/25 12:05 - 12:20
+
+Konadu x Dorothy
+Tue 30/09/25 14:00 - 14:15
