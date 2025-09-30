@@ -200,40 +200,15 @@ This structured breakdown should help in pinpointing the most critical areas and
 Join Zoom Meeting
 https://morganstanley.zoom.us/j/3064916736
 
-
-Hi Raymond,
-
-I’d like to set up a quick 1:1 this week just to check in and hear directly from you. I’ve added a slot to your calendar—feel free to let me know if it doesn’t work so I can reschedule.
-
-Looking forward to our chat!
-
-Hi Kassim,
-
-I’d like to set up a quick 1:1 this week just to check in and hear directly from you. I’ve added a slot to your calendar—feel free to let me know if it doesn’t work so I can reschedule.
-
-Looking forward to our chat!
-
-Hi Konadu,
-
-I’ve scheduled a short 1:1 with you this week—just want to hear your thoughts and get your input directly. If the time doesn’t work for you, let me know and I’ll move it around.
-
-Appreciate it, and see you soon!
+Hi Ebuka,
+ 
+Hope you’re doing well!
+ 
+Just a gentle reminder that you’re scheduled to lead a PTL masterclass on GraphQL in October. It’ll be a great opportunity to share your insights with the wider team and continue driving our culture of learning.
+ 
+Could you please confirm if the timing still works for you? If so, feel free to propose your preferred date in the month of October so we can finalize the calendar early.
+ 
+Looking forward to hearing from you. 
+Thanks so much for contributing to PTL!
 
 
-Hi Elisha,
- 
-I’d like to set up a quick 1:1 this week just to check in and hear directly from you. I’ve added a slot to your calendar, feel free to let me know if it doesn’t work so I can reschedule.
- 
-Looking forward to our chat!
-
-Raymond x Dorothy
-Wed 01/10/25 11:30 - 11:45
-
-Kassim x Dorothy
-Wed 01/10/25 11:50 - 12:05
-
-Elisha x Dorothy
-Wed 01/10/25 12:05 - 12:20
-
-Konadu x Dorothy
-Tue 30/09/25 14:00 - 14:15
