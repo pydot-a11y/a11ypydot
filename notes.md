@@ -248,3 +248,9 @@ The DevTools show:
 - Cache information
 
 This is invaluable for debugging and understanding how your data is being fetched and cached.
+
+
+Projects located in different subdirectories.
+People work on different directories.
+If you want to learn about someone’s work. You have to go into that directory.
+Optimus has millions of code and it would be great to limit it to subdirectories. He wants to be able to restrict what to visualize
