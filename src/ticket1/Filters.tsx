@@ -9,6 +9,8 @@ export const ENVIRONMENT_OPTIONS: FilterOption[] = [
     { id: 'QA', label: 'QA' },
     { id: 'PROD', label: 'Prod' },
   ];
+
+  export const ENVIRONMENTS_TO_FETCH: string[] = ['DEV', 'QA', 'PROD'];
   
   export const DEFAULT_ENVIRONMENT_ID: EnvironmentId = 'ALL';
   // --- END NEW CONSTANTS ---
