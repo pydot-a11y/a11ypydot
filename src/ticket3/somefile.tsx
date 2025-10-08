@@ -101,3 +101,40 @@ const pageData = useMemo(() => {
         topUsersData: transformToTopUsersAcrossSystems(c4tsCurrent, structurizrCurrent),
     };
   }, [allData, activeFilters]);
+
+
+
+
+
+
+
+
+
+  // NEW, CORRECTED queryFn
+queryFn: async () => {
+    // a. Get the date range for the user's selection (e.g., "All time")
+    const { startDate: currentStart, endDate: currentEnd } = getTimeframeDates(activeFilters.timeframe);
+    
+    // b. --- THIS IS THE FIX ---
+    // We initialize the variables first.
+    let previousPeriod = { start: currentStart, end: currentEnd }; 
+    let fetchStartDate = currentStart;
+  
+    // c. We ONLY calculate a preceding period if the timeframe is NOT 'all-time'.
+    if (activeFilters.timeframe !== 'all-time') {
+      previousPeriod = getPrecedingPeriod({ start: currentStart, end: currentEnd });
+      fetchStartDate = previousPeriod.start;
+    }
+    // This `if` block prevents the invalid date calculation for the 'all-time' case.
+    // --- END OF FIX ---
+  
+    const fetchEndDate = currentEnd;
+    
+    // d. This Promise.all now receives a VALID start date, even for 'all-time'.
+    const [c4tsLogs, structurizrLogs] = await Promise.all([
+      fetchAllC4TSLogs(fetchStartDate, fetchEndDate),
+      fetchRawStructurizrLogsByDate(fetchStartDate, fetchEndDate),
+    ]);
+    
+    return { c4tsLogs, structurizrLogs, currentPeriod: { start: currentStart, end: currentEnd }, previousPeriod };
+  },
