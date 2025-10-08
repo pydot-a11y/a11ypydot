@@ -110,31 +110,66 @@ const pageData = useMemo(() => {
 
 
 
-  // NEW, CORRECTED queryFn
-queryFn: async () => {
-    // a. Get the date range for the user's selection (e.g., "All time")
-    const { startDate: currentStart, endDate: currentEnd } = getTimeframeDates(activeFilters.timeframe);
+ // src/pages/Overview.tsx
+
+  // --- Replace your entire pageData useMemo block with this corrected version ---
+  const pageData = useMemo(() => {
+    if (!allData) return null;
+
+    const { c4tsLogs, structurizrLogs, currentPeriod, previousPeriod } = allData;
     
-    // b. --- THIS IS THE FIX ---
-    // We initialize the variables first.
-    let previousPeriod = { start: currentStart, end: currentEnd }; 
-    let fetchStartDate = currentStart;
-  
-    // c. We ONLY calculate a preceding period if the timeframe is NOT 'all-time'.
-    if (activeFilters.timeframe !== 'all-time') {
-      previousPeriod = getPrecedingPeriod({ start: currentStart, end: currentEnd });
-      fetchStartDate = previousPeriod.start;
-    }
-    // This `if` block prevents the invalid date calculation for the 'all-time' case.
-    // --- END OF FIX ---
-  
-    const fetchEndDate = currentEnd;
+    // --- START OF THE FIX ---
+    // 1. Filter by the selected ENVIRONMENT first. This is the missing step.
+    const c4tsFilteredByEnv = activeFilters.environment === 'ALL'
+      ? c4tsLogs
+      : c4tsLogs.filter(log => log.environment === activeFilters.environment);
+      
+    const structurizrFilteredByEnv = activeFilters.environment === 'ALL'
+      ? structurizrLogs
+      : structurizrLogs.filter(log => log.environment === activeFilters.environment);
+    // --- END OF THE FIX ---
+
+    // 2. Now, apply the user filter to these already-environment-filtered arrays.
+    const filterByUser = (logs: (RawApiLog | RawStructurizrLog)[], user: string) => {
+        if (user === 'ALL_USERS') return logs;
+        return logs.filter(log => (log as RawApiLog).user === user || (log as RawStructurizrLog).eonid === user);
+    };
+
+    const c4tsFiltered = filterByUser(c4tsFilteredByEnv, activeFilters.user) as RawApiLog[];
+    const structurizrFiltered = filterByUser(structurizrFilteredByEnv, activeFilters.user) as RawStructurizrLog[];
+
+    // 3. The rest of your existing logic can now proceed, flowing from the correctly filtered data.
+    const filterByDateRange = (logs: (RawApiLog | RawStructurizrLog)[], range: { start: Date; end: Date }) => {
+      return logs.filter(log => {
+        const dateString = (log as any).created_at || (log as any).createdAt;
+        if (!dateString) return false;
+        try {
+          const date = parseISO(dateString);
+          if (isNaN(date.getTime())) return false;
+          return isWithinInterval(date, range);
+        } catch { return false; }
+      });
+    };
     
-    // d. This Promise.all now receives a VALID start date, even for 'all-time'.
-    const [c4tsLogs, structurizrLogs] = await Promise.all([
-      fetchAllC4TSLogs(fetchStartDate, fetchEndDate),
-      fetchRawStructurizrLogsByDate(fetchStartDate, fetchEndDate),
-    ]);
-    
-    return { c4tsLogs, structurizrLogs, currentPeriod: { start: currentStart, end: currentEnd }, previousPeriod };
-  },
+    const c4tsCurrent = filterByDateRange(c4tsFiltered, currentPeriod) as RawApiLog[];
+    const c4tsPrevious = filterByDateRange(c4tsFiltered, previousPeriod) as RawApiLog[];
+    const structurizrCurrent = filterByDateRange(structurizrFiltered, currentPeriod) as RawStructurizrLog[];
+    const structurizrPrevious = filterByDateRange(structurizrFiltered, previousPeriod) as RawStructurizrLog[];
+
+    const isAllTime = activeFilters.timeframe === 'all-time';
+    const neutralTrend: Trend = { value: 0, direction: 'neutral' };
+
+    const stats: OverviewSummaryStats = {
+        totalApiHits: { value: c4tsCurrent.length, trend: isAllTime ? neutralTrend : calculateTrend(c4tsCurrent.length, c4tsPrevious.length) },
+        activeWorkspaces: { value: getStructurizrActiveWorkspaceCount(structurizrCurrent), trend: isAllTime ? neutralTrend : calculateTrend(getStructurizrActiveWorkspaceCount(structurizrCurrent), getStructurizrActiveWorkspaceCount(structurizrPrevious)) },
+        totalC4TSUsers: { value: extractC4TSDistinctUsers(c4tsCurrent).size, trend: isAllTime ? neutralTrend : calculateTrend(extractC4TSDistinctUsers(c4tsCurrent).size, extractC4TSDistinctUsers(c4tsPrevious).size) },
+        totalStructurizrUsers: { value: extractStructurizrDistinctUsers(structurizrCurrent).size, trend: isAllTime ? neutralTrend : calculateTrend(extractStructurizrDistinctUsers(structurizrCurrent).size, extractStructurizrDistinctUsers(structurizrPrevious).size) },
+    };
+
+    return {
+        stats,
+        c4tsChartData: transformC4TSLogsToTimeSeries(c4tsCurrent),
+        structurizrChartData: transformStructurizrToCreationTrend(structurizrCurrent),
+        topUsersData: transformToTopUsersAcrossSystems(c4tsCurrent, structurizrCurrent),
+    };
+  }, [allData, activeFilters]);
