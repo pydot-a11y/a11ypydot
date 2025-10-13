@@ -75,20 +75,18 @@ const fetchRawStructurizrLogsByDate = async (startDate: Date, endDate: Date, env
 // --- AGGREGATOR FUNCTIONS (Corrected with robust checks) ---
 
 export const fetchAllC4TSLogs = async (startDate: Date, endDate: Date): Promise<RawApiLog[]> => {
+  // This function is now safe because the functions it calls will never return `undefined`.
   const promises = ENVIRONMENTS_TO_FETCH.map(env => fetchRawC4TSLogsByDate(startDate, endDate, env));
   const results = await Promise.allSettled(promises);
   
   let allLogs: RawApiLog[] = [];
   results.forEach((result, index) => {
-    const env = ENVIRONMENTS_TO_FETCH[index];
-    if (result.status === 'fulfilled') {
-      // CRITICAL FIX: Check if result.value is an array before calling .map
-      if (Array.isArray(result.value)) {
-        const taggedLogs = result.value.map(log => ({ ...log, environment: env }));
-        allLogs = allLogs.concat(taggedLogs);
-      }
-    } else {
-      console.error(`Promise rejected for fetching C4TS logs for environment: ${env}`, result.reason);
+    if (result.status === 'fulfilled' && Array.isArray(result.value)) {
+      const env = ENVIRONMENTS_TO_FETCH[index];
+      const taggedLogs = result.value.map(log => ({ ...log, environment: env }));
+      allLogs = allLogs.concat(taggedLogs);
+    } else if (result.status === 'rejected') {
+      console.error(`Promise rejected for C4TS env: ${ENVIRONMENTS_TO_FETCH[index]}`, result.reason);
     }
   });
   return allLogs;
