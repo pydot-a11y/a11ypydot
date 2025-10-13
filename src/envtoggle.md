@@ -68,3 +68,11 @@ You can create one ticket per page or a single ticket for both, depending on you
     3.  Add the environment filtering step at the top of the page's `useMemo` data derivation logic.
 *   **Story Points: 2 each**
     *   **Reasoning:** These tasks are less complex than the first implementation on the Overview page because the pattern has already been established. The developer is primarily replicating a known, working solution.
+
+    Hi Samuel, checking in.
+
+I haven’t received the date for your October Masterclass yet. 
+
+Ideally, we should send the ad out at least a week before. 
+
+Could you please confirm your date by end of day tomorrow so I can send you the form to duplicate and share the ad? Thanks!
