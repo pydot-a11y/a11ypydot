@@ -93,6 +93,56 @@ Apply the three improvements above — starting with parallel rendering, followe
 	3.	Verify Performance:
 Re-test with DSLs of varying complexity to measure actual gains in latency and memory usage.
 
+
+
+Good — since you’ve already documented the spike and chosen to implement only the parallel rendering refactor this sprint, here’s how I’d structure your implementation work for clarity and focus:
+
 ⸻
 
-Would you like me to shorten this into a compact “executive summary” paragraph version (2–3 sentences) for the ticket description header or status update comment in Jira?
+🎯 Implementation Plan: “Parallelize Diagram Rendering”
+
+You only need one Jira story for this sprint — keep it tightly scoped around introducing parallel processing for diagram rendering.
+
+Ticket 1:
+
+Title: Refactor diagram rendering loop to process all views concurrently
+
+Type: Story (Implementation)
+Story Points: 3 points — medium effort
+
+Reasoning: The work involves safe refactoring and testing parallel streams, not a full redesign. It’s mostly contained within the rendering service layer and won’t break external APIs, but still needs careful testing to ensure thread safety and consistent output.
+
+⸻
+
+Ticket Description (for Jira)
+
+Summary:
+Implement parallel rendering of C4 diagrams within the convertC4WorkspaceToC4ImageByteStream flow to reduce total translation time. This involves refactoring the sequential rendering logic to utilize Java’s parallel streams (or ExecutorService) for concurrent processing of all view types.
+
+Acceptance Criteria:
+	•	All diagram views (System Context, Container, Component, Deployment, Landscape, Dynamic) are rendered concurrently.
+	•	Translation time decreases significantly compared to baseline sequential version.
+	•	Output remains deterministic — same ZIP structure, file naming, and content integrity.
+	•	No race conditions, corrupted images, or missing diagrams in concurrent executions.
+	•	Unit and integration tests pass successfully.
+
+Definition of Done:
+	•	Refactored method merged to develop branch.
+	•	Logs capture individual render durations for observability.
+	•	Verified translation performance improvement on sample DSLs (small, medium, large).
+	•	Updated test coverage and documentation for the translation flow.
+
+⸻
+
+🧩 Optional Follow-Up Tickets (For Later Sprints)
+
+Once this story is done and validated, you can create additional tickets (after team review):
+	1.	Implement Two-Pass Streaming Model for ZIP Output – 5 points (larger refactor, memory optimization)
+	2.	Ensure Renderer Reuse – 1 point (small config-level fix)
+
+⸻
+
+Final Sprint Setup Recommendation:
+	•	✅ Keep 1 story (3 points) in this sprint for the parallel rendering refactor.
+	•	🕐 Hold the streaming and renderer reuse changes for the next sprint after internal discussion.
+
