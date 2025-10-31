@@ -146,3 +146,28 @@ Final Sprint Setup Recommendation:
 	•	✅ Keep 1 story (3 points) in this sprint for the parallel rendering refactor.
 	•	🕐 Hold the streaming and renderer reuse changes for the next sprint after internal discussion.
 
+Sure — here’s an expanded version that stays simple but gives enough clarity for a developer to start exploring right away:
+
+⸻
+
+🧠 How I Understand the Ticket
+
+This spike is about figuring out how to bridge the gap between C4 DSL models (which describe architecture in diagrams) and the actual source code (where the implementation lives). Currently, the C4 models are often created manually and can easily drift away from what’s in the code. The goal is to research and experiment with ways to automate or semi-automate that link, so that when developers update code, the C4 model can also reflect those changes—or vice versa.
+
+⸻
+
+💡 Simplified Explanation for the Developer
+
+The goal of this spike is to explore how we can build a small pipeline or tool that connects C4 DSL diagrams with the project’s source code.
+You’ll investigate how elements defined in the C4 DSL (like Systems, Containers, Components) can map to real code artifacts such as packages, modules, or classes. For example, if the DSL defines a “UserService” container, can the tool identify the corresponding UserService class or module in code and keep them in sync?
+
+You should also look into:
+	•	How the DSL and code can communicate (e.g., through annotations, metadata, JSON mapping, or CI/CD hooks).
+	•	Whether we can generate or update C4 DSL files automatically based on the code structure.
+	•	What existing tools (like Structurizr, CALM, or custom parsers) can help.
+
+The output of this spike should be a short summary or prototype showing what’s possible, what tools/libraries might be needed, and recommended next steps for implementation.
+
+⸻
+
+Would you like me to make it read more like a Jira description (structured with bullets and sections) or a message summary (short paragraph you paste in the ticket directly)?
