@@ -171,3 +171,8 @@ The output of this spike should be a short summary or prototype showing what’s
 ⸻
 
 Would you like me to make it read more like a Jira description (structured with bullets and sections) or a message summary (short paragraph you paste in the ticket directly)?
+
+Refactored the rendering pipeline to render all C4 views concurrently
+using Java parallel streams. Performance improved from 30s → 27s.
+Added integration and performance tests to validate correctness,
+ZIP structure, and translation timing.
