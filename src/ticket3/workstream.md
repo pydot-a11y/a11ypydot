@@ -86,3 +86,5 @@ Just a reminder team — please drop your items in today so we can finalize the 
 ⸻
 
 If you’d like, I can generate a filled example based on your actual team roles so you only plug in names.
+
+Share what you’re currently working on and clearly indicate which ones you drive vs where you’re only supporting.
