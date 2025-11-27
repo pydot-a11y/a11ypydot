@@ -1,90 +1,31 @@
+Got it — spreadsheet format, concise but professional, with columns clearly populated, and also acknowledging the new platform suggestion + potential pause.
 
-
-1. Spreadsheet naming
-
-Create a third sheet titled:
-
-🔹 Workstream Ownership & Active Tasks — Q4 2025
-
-Inside the sheet, use these column headers:
-
-Team Member	Active Workstream(s)	What They Are Driving	Supporting On	Status (Active / Paused / TBD)	Notes / Blockers
-
-
-This directly answers your manager’s request and becomes a single-source-of-truth you can update weekly.
+Here is a clean copy-paste-ready row for the spreadsheet, followed by a polished Slack-style summary for the manager.
 
 ⸻
 
-2. Short message to send to teammates
+📄 Spreadsheet Entry (Your Row)
 
-You can copy-paste this in Slack/Teams:
+Active Workstream / Project	Status	Driving	Supporting	Q4 Forecasted Deliverable	Major Work Left	Notes / Risks / Blockers
+EA Analytics — Usage Insights Expansion (Region/Dept Metadata)	In Progress	Frontend metadata integration + region/department filtering enablement	Backend endpoint alignment only where needed	Feature ready for dashboard consumption — enabling location/department segmentation of users	Complete metadata retrieval of all users beyond logged-in user; integrate dropdown + filtering logic	Possible adoption pause pending evaluation of Tech Metrics Data Lake CSV platform alternative; may pivot to new solution if approved
+
 
 ⸻
 
-Hi team! 👋
-We’re updating the Workstream Ownership & Active Tasks sheet requested by Nat.
-Please share the details below so we can populate your section accurately:
-	1.	What you’re currently working on
-	2.	What you actively own / drive
-	3.	Any work you are supporting (not driving)
-	4.	If nothing is active, indicate TBD
+Slack/Manager Summary (Professional + Simple)
 
-Please reply in 2–3 bullet points — quick and high-level is fine.
-Sending this in so we have full clarity across the team. 💪🏾
+Dorothy — Active Workstream Update
+	•	Driving EA Analytics metadata enhancement (adding department/region breakdown, UI filtering & dropdown population).
+	•	Supporting backend only where minimal API alignment is needed.
+	•	Expected Q4 output: fully segmented analytics view with user location + department insights.
+	•	⚠ Note: Work may shift depending on decision to migrate to the Tech Metrics Data Lake alternative platform proposed by wider fleet.
 
 ⸻
 
-3. Optional follow-up framing if you want to sound more structured
+If you’d like, I can generate:
 
-If people delay replying:
+🔹 a short version for the spreadsheet view
+🔹 an expanded version explaining work done vs work remaining
+🔹 a color-coded version (green/yellow/red status)
 
-Just a reminder team — please drop your items in today so we can finalize the spreadsheet for Nat and ensure visibility across ongoing workstreams. Thanks 🙌
-Here’s a clean, fast way to execute this.
-
-⸻
-
-1. Spreadsheet naming
-
-Create a third sheet titled:
-
-🔹 Workstream Ownership & Active Tasks — Q4 2025
-
-Inside the sheet, use these column headers:
-
-Team Member	Active Workstream(s)	What They Are Driving	Supporting On	Status (Active / Paused / TBD)	Notes / Blockers
-
-
-This directly answers your manager’s request and becomes a single-source-of-truth you can update weekly.
-
-⸻
-
-2. Short message to send to teammates
-
-You can copy-paste this in Slack/Teams:
-
-⸻
-
-Hi team! 👋
-We’re updating the Workstream Ownership & Active Tasks sheet requested by Nat.
-Please share the details below so we can populate your section accurately:
-	1.	What you’re currently working on
-	2.	What you actively own / drive
-	3.	Any work you are supporting (not driving)
-	4.	If nothing is active, indicate TBD
-
-Please reply in 2–3 bullet points — quick and high-level is fine.
-Sending this in so we have full clarity across the team. 💪🏾
-
-⸻
-
-3. Optional follow-up framing if you want to sound more structured
-
-If people delay replying:
-
-Just a reminder team — please drop your items in today so we can finalize the spreadsheet for Nat and ensure visibility across ongoing workstreams. Thanks 🙌
-
-⸻
-
-If you’d like, I can generate a filled example based on your actual team roles so you only plug in names.
-
-Share what you’re currently working on and clearly indicate which ones you drive vs where you’re only supporting.
+Which one do you want for the final sheet version?
