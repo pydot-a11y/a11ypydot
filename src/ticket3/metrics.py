@@ -1,208 +1,168 @@
 #!/usr/bin/env python3
+
 """
-Workspace growth analysis.
+STRUCTURIZR WORKSPACE METRICS ANALYSIS
+--------------------------------------
 
-- Reads a JSON file containing an array of workspace documents.
-- Each workspace has at least:
-    {
-      "_id": "...",
-      "createdAt": { "$date": "2024-10-15T00:00:00Z" }  # or a plain ISO string
-      "archived": false
-    }
+This script handles both JSON formats:
 
-Metrics per configured period:
-- cumulative_active_end: total non-archived workspaces created on or before period.end
-- active_created_in_period: non-archived workspaces created within [start, end]
-- net_change: same as active_created_in_period (no archivedAt, so we can't model deletions)
-- pct_growth_vs_baseline: percentage growth in cumulative_active_end vs baseline period.
+1) With createdAt.$date
+2) Without createdAt — in this case the timestamp is derived from _id.$oid
+
+Time periods are configured at the top and can be changed anytime.
+
+Output metrics per period:
+- cumulative_active_end
+- active_created_in_period
+- net_change
+- pct_growth_vs_baseline
+
+Run:
+    python workspace_growth_metrics.py <filename.json>
 """
 
 import json
 import sys
-from datetime import datetime
-from typing import Any, Dict, List, Tuple
+from datetime import datetime, timezone
+from typing import Dict, Any, List, Tuple
 
-# ================== CONFIG ==================
+# ========================= CONFIG ========================= #
 
-# Path to JSON file (array of workspace docs)
-JSON_FILE_PATH = "workspaces.json"
-
-# Periods to analyze: key -> (start_date, end_date) as YYYY-MM-DD
 PERIODS: Dict[str, Tuple[str, str]] = {
     "2024_FULL": ("2024-01-01", "2024-12-31"),
-    "2025_H1":   ("2025-01-01", "2025-06-30"),
-    "2025_H2":   ("2025-07-01", "2025-12-31"),
+    "2025_H1"  : ("2025-01-01", "2025-06-30"),
+    "2025_H2"  : ("2025-07-01", "2025-12-31"),
     "2025_FULL": ("2025-01-01", "2025-12-31"),
 }
 
-# Baseline period key for growth calculations
 BASELINE_PERIOD_KEY = "2024_FULL"
 
-# ================== HELPERS ==================
+
+# ========================= DATE PARSERS ========================= #
 
 def parse_iso_datetime(value: str) -> datetime:
-    """
-    Parse an ISO datetime string that may end with 'Z' into a timezone-aware datetime.
-    """
+    """Convert ISO + Z format to datetime."""
     if value.endswith("Z"):
         value = value.replace("Z", "+00:00")
     return datetime.fromisoformat(value)
 
 
-def parse_created_at(doc: Dict[str, Any]) -> datetime | None:
+def created_from_oid(oid_str: str) -> datetime:
+    """Extract datetime from the first 8 characters of a Mongo ObjectID."""
+    ts = int(oid_str[:8], 16)  # timestamp in hex → seconds
+    return datetime.fromtimestamp(ts, tz=timezone.utc)
+
+
+def get_effective_created_at(doc: Dict[str, Any]) -> datetime | None:
     """
-    Extract and parse createdAt from a workspace doc.
-    Handles:
-        "createdAt": {"$date": "..."}
-        "createdAt": "..."
+    Get workspace creation timestamp:
+     1) If createdAt.$date exists → use it
+     2) Otherwise derive from ObjectId
     """
+
+    # --- Try explicit createdAt first ---
     raw = doc.get("createdAt")
-    if isinstance(raw, dict):
+    if isinstance(raw, dict):  # { "$date": "..." }
         raw = raw.get("$date")
-    if not isinstance(raw, str):
-        return None
-    try:
-        return parse_iso_datetime(raw)
-    except Exception:
-        return None
+
+    if isinstance(raw, str):
+        try:
+            return parse_iso_datetime(raw)
+        except Exception:
+            pass  # fallback to ObjectId
+
+    # --- Fallback: derive from ObjectId ---
+    oid = None
+    _id = doc.get("_id")
+
+    if isinstance(_id, dict): oid = _id.get("$oid")
+    elif isinstance(_id, str): oid = _id
+
+    if oid and len(oid) >= 8:
+        try: return created_from_oid(oid)
+        except: return None
+
+    return None
 
 
-def build_period_bounds() -> Dict[str, Dict[str, datetime]]:
-    """
-    Turn PERIODS (date strings) into datetime bounds with full-day coverage.
-    """
-    bounds: Dict[str, Dict[str, datetime]] = {}
-    for key, (start_str, end_str) in PERIODS.items():
-        start_dt = datetime.fromisoformat(start_str + "T00:00:00+00:00")
-        end_dt = datetime.fromisoformat(end_str + "T23:59:59+00:00")
-        bounds[key] = {"start": start_dt, "end": end_dt}
-    return bounds
+# ========================= METRIC ENGINE ========================= #
 
-
-def cumulative_active_as_of(records: List[Dict[str, Any]], end_dt: datetime) -> int:
-    """
-    Count non-archived workspaces created on or before end_dt.
-    """
-    return sum(
-        1
-        for r in records
-        if r["created_at"] is not None
-        and r["created_at"] <= end_dt
-        and not r["archived"]
-    )
-
-
-def active_created_in_period(
-    records: List[Dict[str, Any]], start_dt: datetime, end_dt: datetime
-) -> int:
-    """
-    Count non-archived workspaces created within [start_dt, end_dt].
-    """
-    return sum(
-        1
-        for r in records
-        if r["created_at"] is not None
-        and start_dt <= r["created_at"] <= end_dt
-        and not r["archived"]
-    )
-
-
-# ================== MAIN ANALYSIS ==================
-
-def load_workspaces(path: str) -> List[Dict[str, Any]]:
+def load_json(path: str):
     with open(path, "r", encoding="utf-8") as f:
         return json.load(f)
 
 
-def prepare_records(raw_docs: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    """
-    Normalize records to a simple list of {created_at: datetime, archived: bool}.
-    """
-    records: List[Dict[str, Any]] = []
-    for doc in raw_docs:
-        dt = parse_created_at(doc)
-        archived = bool(doc.get("archived", False))
-        if dt is not None:
-            records.append(
-                {
-                    "created_at": dt,
-                    "archived": archived,
-                }
-            )
-    records.sort(key=lambda r: r["created_at"])
-    return records
+def prepare_records(data: list) -> list:
+    records = []
+    for doc in data:
+        ts = get_effective_created_at(doc)
+        if ts:
+            records.append({
+                "created_at": ts,
+                "archived"  : bool(doc.get("archived", False))
+            })
+    return sorted(records, key=lambda x: x["created_at"])
 
 
-def analyze(records: List[Dict[str, Any]]) -> Dict[str, Dict[str, Any]]:
-    period_bounds = build_period_bounds()
+def build_periods():
+    b = {}
+    for k,(s,e) in PERIODS.items():
+        b[k] = {
+            "start": datetime.fromisoformat(s+"T00:00:00+00:00"),
+            "end"  : datetime.fromisoformat(e+"T23:59:59+00:00")
+        }
+    return b
 
-    if BASELINE_PERIOD_KEY not in period_bounds:
-        raise ValueError(f"Baseline period '{BASELINE_PERIOD_KEY}' is not defined in PERIODS.")
 
-    baseline_end = period_bounds[BASELINE_PERIOD_KEY]["end"]
-    baseline_cum = cumulative_active_as_of(records, baseline_end)
+def cumulative(records, end_date):
+    return sum(1 for r in records if r["created_at"] <= end_date and not r["archived"])
 
-    results: Dict[str, Dict[str, Any]] = {}
 
-    for key in PERIODS.keys():  # keep original order
-        start_dt = period_bounds[key]["start"]
-        end_dt = period_bounds[key]["end"]
+def created_in(records, start, end):
+    return sum(1 for r in records if start <= r["created_at"] <= end and not r["archived"])
 
-        cumulative_end = cumulative_active_as_of(records, end_dt)
-        created_in_period = active_created_in_period(records, start_dt, end_dt)
-        net_change = created_in_period  # no archivedAt, so only creations we can see
 
-        pct_growth = None
-        if baseline_cum > 0:
-            pct_growth = ((cumulative_end - baseline_cum) / baseline_cum) * 100.0
+def analyze(records):
+    periods = build_periods()
+    base_end = periods[BASELINE_PERIOD_KEY]["end"]
+    base_count = cumulative(records, base_end)
+
+    results = {}
+
+    for key,(start,end) in PERIODS.items():
+        ps = periods[key]["start"]
+        pe = periods[key]["end"]
+
+        ce = cumulative(records, pe)
+        cp = created_in(records, ps, pe)
+
+        pct = ((ce - base_count) / base_count * 100) if base_count>0 else None
 
         results[key] = {
-            "period": key,
-            "start": start_dt.isoformat(),
-            "end": end_dt.isoformat(),
-            "cumulative_active_end": cumulative_end,
-            "active_created_in_period": created_in_period,
-            "net_change": net_change,
-            "pct_growth_vs_baseline": pct_growth,
+            "cumulative_active_end": ce,
+            "active_created_in_period": cp,
+            "net_change": cp,  # no archivedAt → equal to new creations
+            "pct_growth_vs_baseline": pct
         }
 
     return results
 
 
-def print_results(results: Dict[str, Dict[str, Any]]) -> None:
-    """
-    Pretty-print results in a simple table.
-    """
-    header = (
-        f"{'Period':<10}  {'Active @ End':>12}  "
-        f"{'Created in Period':>17}  {'Net Change':>11}  {'% Growth vs 2024':>17}"
-    )
-    print(header)
-    print("-" * len(header))
-
-    for key in PERIODS.keys():
-        r = results[key]
-        pct = r["pct_growth_vs_baseline"]
-        pct_str = f"{pct:,.1f}%" if pct is not None else "N/A"
-        print(
-            f"{key:<10}  "
-            f"{r['cumulative_active_end']:>12}  "
-            f"{r['active_created_in_period']:>17}  "
-            f"{r['net_change']:>11}  "
-            f"{pct_str:>17}"
-        )
+def print_table(res):
+    h = f"{'Period':<12} {'Active End':>12} {'Created':>12} {'Net':>10} {'% Growth vs 2024':>18}"
+    print(h)
+    print("-" * len(h))
+    for k in PERIODS:
+        r = res[k]
+        pct = f"{r['pct_growth_vs_baseline']:.1f}%" if r['pct_growth_vs_baseline']!=None else "N/A"
+        print(f"{k:<12} {r['cumulative_active_end']:>12} {r['active_created_in_period']:>12} {r['net_change']:>10} {pct:>18}")
 
 
-def main() -> None:
-    path = JSON_FILE_PATH
-    if len(sys.argv) > 1:
-        path = sys.argv[1]
-
-    raw_docs = load_workspaces(path)
-    records = prepare_records(raw_docs)
-    results = analyze(records)
-    print_results(results)
-
+# ========================= MAIN ========================= #
 
 if __name__ == "__main__":
-    main()
+    path = sys.argv[1] if len(sys.argv)>1 else "workspaces.json"
+    raw = load_json(path)
+    records = prepare_records(raw)
+    results = analyze(records)
+    print_table(results)
