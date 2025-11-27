@@ -1,185 +1,208 @@
-import json
-from datetime import datetime, timedelta, timezone
-from collections import Counter
+#!/usr/bin/env python3
+"""
+Workspace growth analysis.
 
-# ==============================================================================
-# --- SCRIPT CONFIGURATION (EDIT THIS SECTION FOR FUTURE REPORTS) ---
-# ==============================================================================
-
-JSON_FILE_PATH = "p_msde_szr.workspaces_2.json"
-TOP_N_EONIDS = 5  # How many most frequent eonids to display
-
-# 1. Define all time periods you want to analyze here.
-#    Use a descriptive key (e.g., 'H1 2025') and 'YYYY-MM-DD' format for dates.
-PERIODS = {
-    'Full Year 2024': {
-        'start_date': '2024-01-01',
-        'end_date':   '2024-12-31'
-    },
-    'H1 2025': { # Jan-June 2025
-        'start_date': '2025-01-01',
-        'end_date':   '2025-06-30'
-    },
-    'H2 2025': { # July-Dec 2025
-        'start_date': '2025-07-01',
-        'end_date':   '2025-12-31'
-    },
-    'Full Year 2025': {
-        'start_date': '2025-01-01',
-        'end_date':   '2025-12-31'
+- Reads a JSON file containing an array of workspace documents.
+- Each workspace has at least:
+    {
+      "_id": "...",
+      "createdAt": { "$date": "2024-10-15T00:00:00Z" }  # or a plain ISO string
+      "archived": false
     }
+
+Metrics per configured period:
+- cumulative_active_end: total non-archived workspaces created on or before period.end
+- active_created_in_period: non-archived workspaces created within [start, end]
+- net_change: same as active_created_in_period (no archivedAt, so we can't model deletions)
+- pct_growth_vs_baseline: percentage growth in cumulative_active_end vs baseline period.
+"""
+
+import json
+import sys
+from datetime import datetime
+from typing import Any, Dict, List, Tuple
+
+# ================== CONFIG ==================
+
+# Path to JSON file (array of workspace docs)
+JSON_FILE_PATH = "workspaces.json"
+
+# Periods to analyze: key -> (start_date, end_date) as YYYY-MM-DD
+PERIODS: Dict[str, Tuple[str, str]] = {
+    "2024_FULL": ("2024-01-01", "2024-12-31"),
+    "2025_H1":   ("2025-01-01", "2025-06-30"),
+    "2025_H2":   ("2025-07-01", "2025-12-31"),
+    "2025_FULL": ("2025-01-01", "2025-12-31"),
 }
 
-# 2. Set the key of the period that will be used as the baseline for all comparisons.
-BASELINE_PERIOD_KEY = 'Full Year 2024'
+# Baseline period key for growth calculations
+BASELINE_PERIOD_KEY = "2024_FULL"
 
-# ==============================================================================
-# --- END OF CONFIGURATION ---
-# ==============================================================================
+# ================== HELPERS ==================
 
-def parse_iso_datetime(date_str):
-    if not date_str: return None
-    if date_str.endswith('Z'): date_str = date_str[:-1] + '+00:00'
-    try: return datetime.fromisoformat(date_str)
-    except ValueError:
-        try: return datetime.strptime(date_str, '%Y-%m-%dT%H:%M:%S.%f+00:00')
-        except ValueError:
-            try: return datetime.strptime(date_str, '%Y-%m-%dT%H:%M:%S+00:00')
-            except ValueError: return None
+def parse_iso_datetime(value: str) -> datetime:
+    """
+    Parse an ISO datetime string that may end with 'Z' into a timezone-aware datetime.
+    """
+    if value.endswith("Z"):
+        value = value.replace("Z", "+00:00")
+    return datetime.fromisoformat(value)
 
-def get_comparison_text(current_val, previous_val, item_name="items"):
-    if previous_val == 0:
-        if current_val > 0: return f"Increased from 0 to {current_val} (previously no {item_name})."
-        else: return f"Remained at 0 {item_name}."
-    if current_val > previous_val:
-        diff = current_val - previous_val
-        percentage_increase = (diff / previous_val) * 100
-        return f"Increased by {diff} ({percentage_increase:+.2f}%) from {previous_val}."
-    elif current_val < previous_val:
-        diff = previous_val - current_val
-        percentage_decrease = (diff / previous_val) * 100
-        return f"Decreased by {diff} (-{percentage_decrease:.2f}%) from {previous_val}."
-    else:
-        return f"Remained the same at {current_val}."
 
-def analyze_workspace_data(file_path, periods_config, baseline_key):
-    # --- Step 1: Initialize data structures ---
-    
-    # Parse date strings from config into datetime objects for comparison
-    for key, period in periods_config.items():
-        period['start'] = datetime.fromisoformat(period['start_date']).replace(tzinfo=timezone.utc)
-        period['end'] = datetime.fromisoformat(period['end_date']).replace(hour=23, minute=59, second=59, tzinfo=timezone.utc)
-        period['start_minus_one_day'] = period['start'] - timedelta(days=1)
-
-    # Dictionary to hold the final calculated results for each period
-    period_results = {key: {
-        'newly_created': 0,
-        'active_in_period': 0, # Created in period AND not archived
-        'archived_in_period': 0, # Created in period AND archived
-        'eonid_counts': Counter(),
-        'cumulative_active_at_start': 0,
-        'cumulative_active_at_end': 0,
-    } for key in periods_config}
-
-    all_workspace_ids = set()
-    total_processed_entries = 0
-    # ... other error/summary counters ...
-    
+def parse_created_at(doc: Dict[str, Any]) -> datetime | None:
+    """
+    Extract and parse createdAt from a workspace doc.
+    Handles:
+        "createdAt": {"$date": "..."}
+        "createdAt": "..."
+    """
+    raw = doc.get("createdAt")
+    if isinstance(raw, dict):
+        raw = raw.get("$date")
+    if not isinstance(raw, str):
+        return None
     try:
-        # --- Step 2: Read and process the JSON file ---
-        with open(file_path, 'r', encoding='utf-8') as f:
-            # This part for reading JSON array or JSON Lines is the same
-            try: data_objects = json.load(f)
-            except json.JSONDecodeError:
-                f.seek(0)
-                data_objects = [json.loads(line) for line in f if line.strip()]
+        return parse_iso_datetime(raw)
+    except Exception:
+        return None
 
-        total_processed_entries = len(data_objects)
 
-        for ws in data_objects:
-            created_at_date = parse_iso_datetime(ws.get("createdAt", {}).get("$date"))
-            if not created_at_date: continue
+def build_period_bounds() -> Dict[str, Dict[str, datetime]]:
+    """
+    Turn PERIODS (date strings) into datetime bounds with full-day coverage.
+    """
+    bounds: Dict[str, Dict[str, datetime]] = {}
+    for key, (start_str, end_str) in PERIODS.items():
+        start_dt = datetime.fromisoformat(start_str + "T00:00:00+00:00")
+        end_dt = datetime.fromisoformat(end_str + "T23:59:59+00:00")
+        bounds[key] = {"start": start_dt, "end": end_dt}
+    return bounds
 
-            is_archived = ws.get("archived") is True
-            all_workspace_ids.add(str(ws.get("workspaceId", "Unknown")))
 
-            # Calculate metrics for each defined period
-            for key, period in periods_config.items():
-                # A) Cumulative counts (total active workspaces up to a point in time)
-                if created_at_date <= period['start_minus_one_day'] and not is_archived:
-                    period_results[key]['cumulative_active_at_start'] += 1
-                if created_at_date <= period['end'] and not is_archived:
-                    period_results[key]['cumulative_active_at_end'] += 1
+def cumulative_active_as_of(records: List[Dict[str, Any]], end_dt: datetime) -> int:
+    """
+    Count non-archived workspaces created on or before end_dt.
+    """
+    return sum(
+        1
+        for r in records
+        if r["created_at"] is not None
+        and r["created_at"] <= end_dt
+        and not r["archived"]
+    )
 
-                # B) Period-specific counts (for workspaces CREATED within the period)
-                if period['start'] <= created_at_date <= period['end']:
-                    period_results[key]['newly_created'] += 1
-                    current_eonid = str(ws.get("eonid", "Unknown"))
-                    period_results[key]['eonid_counts'][current_eonid] += 1
-                    
-                    if is_archived:
-                        period_results[key]['archived_in_period'] += 1
-                    else:
-                        period_results[key]['active_in_period'] += 1
 
-        # --- Step 3: Print the dynamic report ---
-        print("\n" + "="*80)
-        print(" " * 25 + "WORKSPACE METRICS REPORT")
-        print("="*80)
+def active_created_in_period(
+    records: List[Dict[str, Any]], start_dt: datetime, end_dt: datetime
+) -> int:
+    """
+    Count non-archived workspaces created within [start_dt, end_dt].
+    """
+    return sum(
+        1
+        for r in records
+        if r["created_at"] is not None
+        and start_dt <= r["created_at"] <= end_dt
+        and not r["archived"]
+    )
 
-        baseline_results = period_results[baseline_key]
-        print(f"\n--- BASELINE PERIOD: {baseline_key} ({periods_config[baseline_key]['start_date']} to {periods_config[baseline_key]['end_date']}) ---\n")
-        print(f"1. Active Workspaces Created in Period: {baseline_results['active_in_period']}")
-        print(f"2. Cumulative Active Workspaces at End of Period: {baseline_results['cumulative_active_at_end']}")
-        print(f"3. Net Change in Active Workspaces During Period: {(baseline_results['cumulative_active_at_end'] - baseline_results['cumulative_active_at_start']):+}")
-        print(f"4. Newly Created Workspaces (Total): {baseline_results['newly_created']}")
-        print(f"5. Unique `eonid`s in Period: {len(baseline_results['eonid_counts'])}")
 
-        # Loop through all other periods and compare them to the baseline
-        for key, results in period_results.items():
-            if key == baseline_key: continue
+# ================== MAIN ANALYSIS ==================
 
-            print("\n" + "-"*80)
-            print(f"\n--- COMPARISON PERIOD: {key} ({periods_config[key]['start_date']} to {periods_config[key]['end_date']}) ---\n")
-            
-            # Metric 1: Active Workspaces created in Period
-            print(f"1. Active Workspaces Created in Period: {results['active_in_period']}")
-            print(f"   - Comparison to Baseline: {get_comparison_text(results['active_in_period'], baseline_results['active_in_period'])}")
+def load_workspaces(path: str) -> List[Dict[str, Any]]:
+    with open(path, "r", encoding="utf-8") as f:
+        return json.load(f)
 
-            # Metric 2: Cumulative Active Workspaces
-            print(f"\n2. Cumulative Active Workspaces at End of Period: {results['cumulative_active_at_end']}")
-            print(f"   - Comparison to Baseline: {get_comparison_text(results['cumulative_active_at_end'], baseline_results['cumulative_active_at_end'])}")
 
-            # Metric 3: Net Change
-            net_change = results['cumulative_active_at_end'] - results['cumulative_active_at_start']
-            baseline_net_change = baseline_results['cumulative_active_at_end'] - baseline_results['cumulative_active_at_start']
-            print(f"\n3. Net Change in Active Workspaces During Period: {net_change:+}")
-            print(f"   - Comparison to Baseline: {get_comparison_text(net_change, baseline_net_change)}")
-            
-            # Metric 4: Newly Created (Total)
-            print(f"\n4. Newly Created Workspaces (Total): {results['newly_created']}")
-            print(f"   - Comparison to Baseline: {get_comparison_text(results['newly_created'], baseline_results['newly_created'])}")
+def prepare_records(raw_docs: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """
+    Normalize records to a simple list of {created_at: datetime, archived: bool}.
+    """
+    records: List[Dict[str, Any]] = []
+    for doc in raw_docs:
+        dt = parse_created_at(doc)
+        archived = bool(doc.get("archived", False))
+        if dt is not None:
+            records.append(
+                {
+                    "created_at": dt,
+                    "archived": archived,
+                }
+            )
+    records.sort(key=lambda r: r["created_at"])
+    return records
 
-            # Metric 5: eonid Analysis
-            print(f"\n5. Unique `eonid`s in Period: {len(results['eonid_counts'])}")
-            print(f"   - Comparison to Baseline: {get_comparison_text(len(results['eonid_counts']), len(baseline_results['eonid_counts']))}")
-            print(f"   Most Frequent `eonid`s (Top {TOP_N_EONIDS}):")
-            if results['eonid_counts']:
-                for eonid, count in results['eonid_counts'].most_common(TOP_N_EONIDS): print(f"     - {eonid}: {count} occurrences")
-            else:
-                print("     - No eonids found for this period.")
 
-        print("\n" + "="*80)
-        print(f"Total Unique Workspaces (Overall): {len(all_workspace_ids)}")
-        print(f"Total Raw Entries Processed: {total_processed_entries}")
-        print("="*80)
+def analyze(records: List[Dict[str, Any]]) -> Dict[str, Dict[str, Any]]:
+    period_bounds = build_period_bounds()
 
-    except FileNotFoundError:
-        print(f"Error: File not found at {file_path}")
-    except Exception as e:
-        print(f"An unexpected error occurred: {e}")
-        import traceback
-        traceback.print_exc()
+    if BASELINE_PERIOD_KEY not in period_bounds:
+        raise ValueError(f"Baseline period '{BASELINE_PERIOD_KEY}' is not defined in PERIODS.")
+
+    baseline_end = period_bounds[BASELINE_PERIOD_KEY]["end"]
+    baseline_cum = cumulative_active_as_of(records, baseline_end)
+
+    results: Dict[str, Dict[str, Any]] = {}
+
+    for key in PERIODS.keys():  # keep original order
+        start_dt = period_bounds[key]["start"]
+        end_dt = period_bounds[key]["end"]
+
+        cumulative_end = cumulative_active_as_of(records, end_dt)
+        created_in_period = active_created_in_period(records, start_dt, end_dt)
+        net_change = created_in_period  # no archivedAt, so only creations we can see
+
+        pct_growth = None
+        if baseline_cum > 0:
+            pct_growth = ((cumulative_end - baseline_cum) / baseline_cum) * 100.0
+
+        results[key] = {
+            "period": key,
+            "start": start_dt.isoformat(),
+            "end": end_dt.isoformat(),
+            "cumulative_active_end": cumulative_end,
+            "active_created_in_period": created_in_period,
+            "net_change": net_change,
+            "pct_growth_vs_baseline": pct_growth,
+        }
+
+    return results
+
+
+def print_results(results: Dict[str, Dict[str, Any]]) -> None:
+    """
+    Pretty-print results in a simple table.
+    """
+    header = (
+        f"{'Period':<10}  {'Active @ End':>12}  "
+        f"{'Created in Period':>17}  {'Net Change':>11}  {'% Growth vs 2024':>17}"
+    )
+    print(header)
+    print("-" * len(header))
+
+    for key in PERIODS.keys():
+        r = results[key]
+        pct = r["pct_growth_vs_baseline"]
+        pct_str = f"{pct:,.1f}%" if pct is not None else "N/A"
+        print(
+            f"{key:<10}  "
+            f"{r['cumulative_active_end']:>12}  "
+            f"{r['active_created_in_period']:>17}  "
+            f"{r['net_change']:>11}  "
+            f"{pct_str:>17}"
+        )
+
+
+def main() -> None:
+    path = JSON_FILE_PATH
+    if len(sys.argv) > 1:
+        path = sys.argv[1]
+
+    raw_docs = load_workspaces(path)
+    records = prepare_records(raw_docs)
+    results = analyze(records)
+    print_results(results)
+
 
 if __name__ == "__main__":
-    analyze_workspace_data(JSON_FILE_PATH, PERIODS, BASELINE_PERIOD_KEY)
+    main()
