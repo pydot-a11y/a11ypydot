@@ -58,3 +58,13 @@ The Enterprise Architecture team is not just technically strong — it is truste
 In every sense, this is a team that exemplifies the might and mettle of Turntabl engineering — and sets the standard for what excellence looks like.
 
 Congratulations to the Enterprise Architecture team, to Dorothy Ewuah, and to Joseph Brown-Pobee. This recognition is well-earned — and well-deserved.
+
+
+Good catch — you’re right. Here’s a clean, accurate rewrite that makes it clear he was nominated, not a winner, while still honoring his impact.
+
+Use this version instead (same placement)
+
+People’s Choice Nominee – Most Hilarious — Elisha Amenuveve
+Excellence in a team is also reflected in its culture, and Elisha Amenuveve’s People’s Choice nomination for Most Hilarious speaks to the energy he brings to the Enterprise Architecture team. Frequently recognized by colleagues for his humor and light-hearted presence, Elisha plays an important role in keeping the team grounded, connected, and resilient — especially during high-pressure moments. His nomination highlights the strong interpersonal culture within the team, where collaboration, morale, and mutual respect are just as valued as technical delivery.
+
+This keeps it factual, respectful, and blends smoothly with the rest of the article.
