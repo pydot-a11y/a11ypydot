@@ -101,3 +101,13 @@ If you want, I can also:
 	•	Write a 30-second opening script
 	•	Help you close with a strong verbal summary
 	•	Help you turn the takeaways into a follow-up note or planning input
+
+
+    Implement TAI client query for user department metadata lookup
+    Add user metadata API endpoint for department filtering
+    Add tests for user metadata endpoint
+
+    Add user metadata API to support department-based analytics filtering
+
+    Metadata is returned as a single keyed object to allow efficient lookup and reuse on the frontend
+	•	Backend performs a single batched TAI request per call to avoid per-user API calls
