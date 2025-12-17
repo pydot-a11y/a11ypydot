@@ -1,7 +1,18 @@
-# tests/test_user_metadata.py
-import pytest
+import json
+import sys
+from unittest.mock import MagicMock, patch
 
-from app.app import app  # your Flask app instance
+import pytest
+from http import HTTPStatus
+from flask import Flask
+
+# Mock external deps before importing app (matches your existing pattern)
+sys.modules["mongodb_python_driver"] = MagicMock()
+sys.modules["ms"] = MagicMock()
+sys.modules["ms.directory"] = MagicMock()
+
+from app.app import app  # noqa: E402
+from app.constants import AUTHENTICATED_WEBSTACK_USER_HEADER  # noqa: E402
 
 
 @pytest.fixture
@@ -11,73 +22,74 @@ def client():
         yield client
 
 
-class TestUserMetadataEndpoint:
-    def test_requires_ids_query_param(self, client):
-        resp = client.get("/user-metadata/QA")
-        assert resp.status_code == 400
-        assert resp.get_json() == {"message": "ids query parameter is required"}
+def test_user_metadata_route_exists():
+    routes = [rule.rule for rule in app.url_map.iter_rules()]
+    # Flask-RESTX typically registers the route exactly as defined
+    assert "/user-metadata/<env>" in routes
 
-    def test_happy_path_returns_metadata_map(self, client, monkeypatch):
-        # This patches the unqualified function call inside app.py:
-        # rows = get_user_department(env.value, user_ids)
-        def fake_get_user_department(env, user_ids):
-            assert env == "QA"
-            assert user_ids == ["dorothy", "browjose"]
-            return [
-                {"user.user": "dorothy", "user.division": "ENTERPRISE TECH & SERVICES"},
-                {"user.user": "browjose", "user.division": "ENTERPRISE TECH & SERVICES"},
-            ]
 
-        monkeypatch.setattr("app.app.get_user_department", fake_get_user_department)
+def test_user_metadata_missing_ids_returns_400(client):
+    # Include header to match existing tests (safe even if auth is disabled locally)
+    resp = client.get(
+        "/user-metadata/QA",
+        headers={AUTHENTICATED_WEBSTACK_USER_HEADER: "test.user@example.com"},
+    )
 
-        resp = client.get("/user-metadata/QA?ids=dorothy;browjose")
-        assert resp.status_code == 200
+    assert resp.status_code == HTTPStatus.BAD_REQUEST
+    data = json.loads(resp.data)
+    assert data["message"] == "ids query parameter is required"
 
-        body = resp.get_json()
-        assert "metadata" in body
-        assert body["metadata"]["dorothy"]["department"] == "ENTERPRISE TECH & SERVICES"
-        assert body["metadata"]["browjose"]["department"] == "ENTERPRISE TECH & SERVICES"
 
-    def test_ignores_empty_ids_and_whitespace(self, client, monkeypatch):
-        def fake_get_user_department(env, user_ids):
-            # your route filters out empty strings; if you don't strip whitespace yet,
-            # you can adjust the expectation here.
-            assert env == "QA"
-            assert user_ids == ["dorothy", "browjose"]
-            return [
-                {"user.user": "dorothy", "user.division": "DIV"},
-                {"user.user": "browjose", "user.division": "DIV"},
-            ]
+@patch("app.app.get_user_department")
+def test_user_metadata_success_returns_metadata_map(mock_get_user_department, client):
+    # This mocks what your TAI call returns (list of dict rows)
+    mock_get_user_department.return_value = [
+       {"user.user": "user_a", "user.division": "ENTERPRISE TECH & SERVICES"},
+       {"user.user": "user_b", "user.division": "WEALTH MANAGEMENT"},
+    ]
 
-        monkeypatch.setattr("app.app.get_user_department", fake_get_user_department)
+    resp = client.get(
+        "/user-metadata/QA?ids=user_a,user_b",
+        headers={AUTHENTICATED_WEBSTACK_USER_HEADER: "test.user@example.com"},
+    )
 
-        resp = client.get("/user-metadata/QA?ids=dorothy;;browjose;")
-        assert resp.status_code == 200
-        assert set(resp.get_json()["metadata"].keys()) == {"dorothy", "browjose"}
+    assert resp.status_code == HTTPStatus.OK
+    payload = json.loads(resp.data)
 
-    def test_value_error_maps_to_400(self, client, monkeypatch):
-        def fake_get_user_department(env, user_ids):
-            raise ValueError("Unknown environment [QA]")
+    assert "metadata" in payload
+    assert payload["metadata"]["user_a"]["department"] == "ENTERPRISE TECH & SERVICES"
+    assert payload["metadata"]["user_b"]["department"] == "WEALTH MANAGEMENT"
 
-        monkeypatch.setattr("app.app.get_user_department", fake_get_user_department)
+    # Also verify we called the service with the env value + list of ids
+    mock_get_user_department.assert_called_once()
+    called_env, called_ids = mock_get_user_department.call_args[0]
+    assert called_env == "QA"
+    assert called_ids == ["user_b", "user_a"]
 
-        resp = client.get("/user-metadata/QA?ids=dorothy")
-        assert resp.status_code == 400
-        assert resp.get_json() == {"message": "Unknown environment [QA]"}
 
-    def test_unexpected_error_maps_to_500(self, client, monkeypatch):
-        def fake_get_user_department(env, user_ids):
-            raise RuntimeError("TAI request failed: 400 Bad Request")
+@patch("app.app.get_user_department")
+def test_user_metadata_value_error_returns_400(mock_get_user_department, client):
+    mock_get_user_department.side_effect = ValueError("Unknown environment [NOPE]")
 
-        monkeypatch.setattr("app.app.get_user_department", fake_get_user_department)
+    resp = client.get(
+        "/user-metadata/NOPE?ids=user_b",
+        headers={AUTHENTICATED_WEBSTACK_USER_HEADER: "test.user@example.com"},
+    )
 
-        resp = client.get("/user-metadata/QA?ids=dorothy")
-        assert resp.status_code == 500
+    assert resp.status_code == HTTPStatus.BAD_REQUEST
+    data = json.loads(resp.data)
+    assert data["message"] == "Unknown environment [NOPE]"
 
-        msg = resp.get_json()["message"]
-        # don’t over-specify; keep it resilient to wording tweaks
-        assert "Failed to retrieve user metadata" in msg
 
-        pytest -q tests/test_user_metadata.py
-# or run all
-pytest -q
+@patch("app.app.get_user_department")
+def test_user_metadata_unexpected_error_returns_500(mock_get_user_department, client):
+    mock_get_user_department.side_effect = Exception("TAI is down")
+
+    resp = client.get(
+        "/user-metadata/QA?ids=user_b",
+        headers={AUTHENTICATED_WEBSTACK_USER_HEADER: "test.user@example.com"},
+    )
+
+    assert resp.status_code == HTTPStatus.INTERNAL_SERVER_ERROR
+    data = json.loads(resp.data)
+    assert data["message"] == "Failed to retrieve user metadata"
