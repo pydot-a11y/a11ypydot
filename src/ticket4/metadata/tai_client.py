@@ -1,7 +1,9 @@
-from typing import List, Dict, Optional
+from typing import List, Dict
+import logging
 import requests
-from urllib.parse import urlencode
 from requests_kerberos import HTTPKerberosAuth
+
+log = logging.getLogger(__name__)
 
 TAI_BASE_URLS = {
     "DEV":  "http://taidss.webfarm-qa.ms.com/web/1/services/query/",
@@ -15,63 +17,38 @@ def _get_base_url(env: str) -> str:
         raise ValueError(f"Unknown environment [{env}]")
     return TAI_BASE_URLS[env_upper]
 
-def _build_query_url(
-    env: str,
-    dataset: str,
-    columns: Optional[str] = None,
-    filter_expr: Optional[str] = None,
-    mime: str = "json",
-) -> str:
-    """
-    TAI format:
-      {base}/<mime>/<dataset>?c=<cols>&f=<filter>
-    """
-    base = _get_base_url(env).rstrip("/") + "/"
-    path = f"{mime}/{dataset}"
-
-    params = {}
-    if columns:
-        params["c"] = columns
-    if filter_expr:
-        params["f"] = filter_expr
-
-    qs = ("?" + urlencode(params, safe="=;.,_")) if params else ""
-    return f"{base}{path}{qs}"
-
-def get_user_department(env: str, user_ids: List[str]) -> List[Dict]:
-    """
-    Returns TAI rows for user metadata lookup.
-
-    Assumptions for MVP:
-      - dataset = "user"
-      - user id field = user.user
-      - department field = user.division
-
-    If your real ID column is different (e.g. user.eon_id), swap it below.
-    """
+def get_user_metadata(env: str, user_ids: List[str]) -> List[Dict]:
     if not user_ids:
         return []
 
+    base_url = _get_base_url(env)
+
     dataset = "user"
-    columns = "user.user,user.division"
+    columns = "user.user,user.job_title,user.division,user.department"
 
-    # Multiple values are separated by ';' in TAI
-    joined_ids = ";".join([uid.strip() for uid in user_ids if uid.strip()])
+    # TAI expects ; between values
+    filter_values = ";".join(user_ids)
+    filter_expr = f"user.user={filter_values}"
 
-    # operator is '='
-    # If your IDs are actually EON ids, change left side to: user.eon_id
-    filter_expr = f"user.user={joined_ids}"
+    url = f"{base_url}{dataset}"
+    params = {"c": columns, "f": filter_expr}
 
-    url = _build_query_url(env=env, dataset=dataset, columns=columns, filter_expr=filter_expr, mime="json")
+    log.info("TAI GET %s params=%s", url, params)
 
-    resp = requests.get(url, auth=HTTPKerberosAuth(), timeout=60)
+    resp = requests.get(
+        url,
+        params=params,
+        auth=HTTPKerberosAuth(principal=""),
+        timeout=60,
+    )
 
-    # Make failures obvious (so your API endpoint can return the real reason)
-    if resp.status_code >= 400:
-        snippet = resp.text[:500] if resp.text else ""
-        raise RuntimeError(f"TAI request failed: {resp.status_code} {resp.reason}. Body: {snippet}")
+    if not resp.ok:
+        raise RuntimeError(f"TAI request failed: {resp.status_code} {resp.reason}. Body: {resp.text}")
 
     payload = resp.json()
 
-    # TAI returns rows in payload["data"]
+    # optional: fail fast if TAI returned a non-zero errorCode
+    if payload.get("errorCode") not in (0, "0", None):
+        raise RuntimeError(f"TAI errorCode={payload.get('errorCode')} msg={payload.get('errorMessage')}")
+
     return payload.get("data", [])
