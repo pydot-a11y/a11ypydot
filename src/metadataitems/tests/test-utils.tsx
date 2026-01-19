@@ -2,7 +2,26 @@
 import React from "react";
 import { vi } from "vitest";
 
+import "@testing-library/jest-dom/vitest";
+import { afterEach, vi } from "vitest";
+import { cleanup } from "@testing-library/react";
+
+afterEach(() => {
+  cleanup();
+});
+
+// ✅ Add this (Recharts / ResponsiveContainer needs it in jsdom)
+class ResizeObserver {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+}
+
+vi.stubGlobal("ResizeObserver", ResizeObserver);
+
 export const mockUseQuery = vi.fn();
+
+
 
 // ---- react-query mock ----
 vi.mock("@tanstack/react-query", () => ({
