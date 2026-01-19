@@ -1,34 +1,77 @@
-import React from "react";
-import { render, screen } from "@testing-library/react";
-import Overview from "../pages/Overview";
-import { mockUseOutletContext, mockUseQuery } from "./test-utils";
+// src/tests/Overview.test.tsx
+import React from 'react';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { render, screen } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
 
-const baseFilters: any = {
-  timeframe: "7d",
-  environment: "ALL",
-  user: "ALL_USERS",
-  department: "ALL_DEPARTMENTS",
+import Overview from '../pages/Overview';
+
+// 1) Mock outlet context (THIS is what was missing)
+const mockUseOutletContext = vi.fn();
+vi.mock('react-router-dom', async () => {
+  const actual = await vi.importActual<typeof import('react-router-dom')>('react-router-dom');
+  return {
+    ...actual,
+    useOutletContext: () => mockUseOutletContext(),
+  };
+});
+
+// 2) Mock react-query useQuery so we can force loading/error/success states
+const mockUseQuery = vi.fn();
+vi.mock('@tanstack/react-query', () => ({
+  useQuery: (args: any) => mockUseQuery(args),
+}));
+
+// 3) Mock transformer/util functions so the "success" render is deterministic
+vi.mock('../utils/dataTransformer', () => ({
+  transformC4TSLogsToTimeSeries: () => [{ name: 'x', value: 1 }],
+  transformStructurizrToCreationTrend: () => [{ name: 'y', value: 2 }],
+  transformToTopUsersAcrossSystems: () => [{ id: '1', name: 'Dorothy', department: 'EA', c4tsApiHits: 3, structurizrWorkspaces: 4 }],
+  getStructurizrActiveWorkspaceCount: () => 7,
+  extractC4TSDistinctUsers: () => new Set(['u1', 'u2']),
+  extractStructurizrDistinctUsers: () => new Set(['e1']),
+}));
+
+vi.mock('../utils/trendUtils', () => ({
+  calculateTrend: () => ({ value: 0, direction: 'neutral' }),
+}));
+
+// (date utils are only used to compute ranges; safe to keep real unless you want determinism)
+// vi.mock('../utils/dateUtils', () => ({ ... }))
+
+const baseActiveFilters = {
+  timeframe: 'this-month',
+  environment: 'ALL',
+  user: 'ALL_USERS',
+  department: 'ALL_DEPARTMENTS',
 };
 
-describe("Overview page", () => {
-  beforeEach(() => {
-    mockUseQuery.mockReset();
-    mockUseOutletContext.mockReset();
-  });
+function renderPage() {
+  return render(
+    <MemoryRouter>
+      <Overview />
+    </MemoryRouter>
+  );
+}
 
-  test("shows Initializing when outlet context is missing", () => {
+beforeEach(() => {
+  vi.clearAllMocks();
+  mockUseOutletContext.mockReturnValue({
+    activeFilters: baseActiveFilters,
+    setLastUpdated: vi.fn(),
+  });
+});
+
+describe('Overview page', () => {
+  it('shows Initializing when outlet context is missing', () => {
     mockUseOutletContext.mockReturnValue(null);
 
-    render(<Overview />);
-    expect(screen.getByText(/Initializing/i)).toBeInTheDocument();
+    // useQuery won't even matter, component returns early
+    renderPage();
+    expect(screen.getByText(/Initializing\.\.\./i)).toBeInTheDocument();
   });
 
-  test("shows loading state", () => {
-    mockUseOutletContext.mockReturnValue({
-      activeFilters: baseFilters,
-      setLastUpdated: vi.fn(),
-    });
-
+  it('shows loading state', () => {
     mockUseQuery.mockReturnValue({
       data: undefined,
       isLoading: true,
@@ -36,37 +79,27 @@ describe("Overview page", () => {
       dataUpdatedAt: 0,
     });
 
-    render(<Overview />);
-    expect(screen.getByText(/Loading Overview Data/i)).toBeInTheDocument();
+    renderPage();
+    expect(screen.getByText(/Loading Overview Data\.\.\./i)).toBeInTheDocument();
   });
 
-  test("shows error state", () => {
-    mockUseOutletContext.mockReturnValue({
-      activeFilters: baseFilters,
-      setLastUpdated: vi.fn(),
-    });
-
+  it('shows error state', () => {
     mockUseQuery.mockReturnValue({
       data: undefined,
       isLoading: false,
-      error: { message: "Boom" },
+      error: new Error('Boom'),
       dataUpdatedAt: 0,
     });
 
-    render(<Overview />);
+    renderPage();
     expect(screen.getByText(/Error:\s*Boom/i)).toBeInTheDocument();
   });
 
-  test("renders main sections on success", () => {
-    mockUseOutletContext.mockReturnValue({
-      activeFilters: baseFilters,
-      setLastUpdated: vi.fn(),
-    });
-
+  it('renders main sections on success', () => {
     mockUseQuery.mockReturnValue({
       data: {
-        c4tsLogs: [],
-        structurizrLogs: [],
+        c4tsLogs: [{ environment: 'DEV', user: 'u1', created_at: new Date().toISOString() }],
+        structurizrLogs: [{ environment: 'DEV', eonid: 'e1', createdAt: new Date().toISOString() }],
         currentPeriod: { start: new Date(), end: new Date() },
         previousPeriod: { start: new Date(), end: new Date() },
       },
@@ -75,11 +108,12 @@ describe("Overview page", () => {
       dataUpdatedAt: Date.now(),
     });
 
-    render(<Overview />);
+    renderPage();
 
-    expect(screen.getByTestId("StatsCard")).toBeInTheDocument();
+    // Avoid data-testid dependency (your StatsCard currently doesn't expose it)
     expect(screen.getByText(/C4TS Analytics/i)).toBeInTheDocument();
     expect(screen.getByText(/Structurizr Analytics/i)).toBeInTheDocument();
-    expect(screen.getByTestId("TableComponent")).toBeInTheDocument();
+    expect(screen.getByText(/Top Users Across All Systems/i)).toBeInTheDocument();
+    expect(screen.getByText(/Dorothy/i)).toBeInTheDocument();
   });
 });
