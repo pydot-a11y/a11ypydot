@@ -131,3 +131,55 @@ Further work is required to clarify enforceable baselines, preserve architectura
 
 
 Spike outcome: This spike clarified that SecArch drift detection is primarily a governance and interpretation problem rather than a detection problem. Existing tooling already surfaces configuration change, but lacks architectural and decision context needed to assess SecArch relevance. The investigation highlighted a mismatch between architectural intent captured during SecArch review and the configuration-level signals available at runtime, established that iDesigner Case IDs provide necessary traceability but are insufficient as enforceable baselines, and distinguished drift detection from initial implementation validation. The spike intentionally avoided proposing solutions and instead identified where further, more targeted investigation is required.
+
+
+
+No immediate implementation work is proposed as part of this spike. Follow-on investigation is required to determine which SecArch decisions are observable and interpretable via drift detection in practice, and where architectural intent cannot be reliably mapped to runtime signals. Any further work should focus on grounding this problem using real SecArch cases and existing drift findings before solution design is considered.
+
+
+ Ticket 1 (Recommended Next Spike)
+
+Title:
+Spike: Identify Which SecArch Decisions Are Drift-Detectable in Practice
+
+Type: Spike
+
+Brief Description:
+Investigate a small sample of recent SecArch cases to determine which approved security decisions can be meaningfully observed and assessed via runtime drift detection, and which cannot. The goal is to ground the drift discussion in real cases and existing drift findings, not to propose tooling or implementation.
+
+Why this ticket exists:
+This directly addresses the current spike’s main open question and reviewer feedback about operational grounding.
+
+⸻
+
+🔍 Ticket 2 (Optional, Only If Capacity Allows)
+
+Title:
+Spike: Map Existing Drift Findings to SecArch Relevance
+
+Type: Spike
+
+Brief Description:
+Review a limited set of drift findings from existing cloud security tooling and assess whether they can be meaningfully linked back to SecArch decisions using iDesigner Case IDs. Identify where architectural context is missing or ambiguous.
+
+Why this is separate:
+	•	Keeps focus on interpretation, not detection
+	•	Avoids mixing “what drifts” with “what should drift”
+
+If capacity is tight, this can wait.
+
+⸻
+
+⚠️ Ticket 3 (Optional, Exploratory Only)
+
+Title:
+Spike: Explore Feasibility of Architecture Evidence Validation
+
+Type: Spike
+
+Brief Description:
+Explore, at a high level, whether approved SecArch intent can be validated against implementation artefacts (e.g. code or configuration) in a reliable way. This spike is exploratory and intended to surface limits, risks, and false-assurance concerns rather than propose an approach.
+
+Important note:
+Only create this if stakeholders explicitly want it.
+Otherwise, keep it as a noted future investigation, not an active ticket.
