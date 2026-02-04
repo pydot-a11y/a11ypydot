@@ -183,3 +183,16 @@ Explore, at a high level, whether approved SecArch intent can be validated again
 Important note:
 Only create this if stakeholders explicitly want it.
 Otherwise, keep it as a noted future investigation, not an active ticket.
+
+
+Hi Ebuka,
+Hope you’re doing well 😊
+With your masterclass session coming up this month, could you share the dates that work best for you so we can get it scheduled?
+
+
+
+Once the date is confirmed, please complete the form found in the reminder email with your masterclass details. [I could resend the link, if you missed it].
+
+
+
+Happy to support you along the way — whether that’s refining the topic, shaping the session, or anything else you need.
