@@ -196,3 +196,12 @@ Once the date is confirmed, please complete the form found in the reminder email
 
 
 Happy to support you along the way — whether that’s refining the topic, shaping the session, or anything else you need.
+
+
+
+
+Hi Okai,
+Just following up on my note from last week. I know things can get busy, so no rush at all, just wanted to check in and see when you might be able to share your preferred dates for your masterclass this month.
+
+Feel free to let me know if you need any support or if timing is an issue. 
+I’m happy to work around what’s realistic for you.
