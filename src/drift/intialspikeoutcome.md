@@ -200,19 +200,8 @@ Happy to support you along the way — whether that’s refining the topic, shap
 
 
 
-Hi Okai,
-Just following up on my note from last week. I know things can get busy, so no rush at all, just wanted to check in and see when you might be able to share your preferred dates for your masterclass this month.
+Thanks for the update — I really appreciate you being open about this.
 
-Feel free to let me know if you need any support or if timing is an issue. 
-I’m happy to work around what’s realistic for you.
+Pushing the date sounds sensible given everything on your plate right now. Let’s plan to move your session to a later month.
 
-
-
-Hi Okai
-Just checking in one last time on this. I know things have been busy, and I appreciate that.
-
-To help us plan for February, could you let me know by end of day tomorrow whether you’re able to share your preferred dates, or if timing is a challenge right now?
-
-If February no longer works, that’s completely okay. Just let me know so we can adjust accordingly.
-
-Thanks, and happy to support however needed.
+When things settle a bit, feel free to reach out with dates that work better, and we’ll pick it up from there. Happy to support whenever you’re ready.
