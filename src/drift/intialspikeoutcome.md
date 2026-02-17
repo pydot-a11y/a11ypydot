@@ -205,3 +205,22 @@ Thanks for the update — I really appreciate you being open about this.
 Pushing the date sounds sensible given everything on your plate right now. Let’s plan to move your session to a later month.
 
 When things settle a bit, feel free to reach out with dates that work better, and we’ll pick it up from there. Happy to support whenever you’re ready.
+
+
+
+Here’s the text from the image (verbatim, cleaned for readability):
+
+⸻
+
+Important Note: I cannot provide an exact total count of all repositories with DSL files because:
+	•	The search results are limited in size (showing 15 files at a time)
+	•	There appear to be many more repositories with .dsl files across the organization
+	•	An exhaustive search across all repositories would be needed for a precise count
+
+To get an accurate total count, you would need to run a comprehensive query like:
+
+/search?q=file:.*\.dsl$ workspace
+
+This will show all repositories containing .dsl workspace files, and you can then manually check each for the !adrs directive.
+
+From my analysis, at least 23 repositories have .dsl files without ADRs, but the actual number is likely higher.
