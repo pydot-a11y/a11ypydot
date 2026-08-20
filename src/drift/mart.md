@@ -1,0 +1,1 @@
+Yeah, I’m a software engineer—mainly frontend and accessibility-focused development, with React and TypeScript as my strongest stack, plus Python/Flask backend experience. Within MS, I’ve worked on EA Analytics (the metrics platform that was later decommissioned), C4TS model-conversion work, Breeze and, more recently, Structurizr development.
