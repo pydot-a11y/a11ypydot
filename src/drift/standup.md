@@ -39,3 +39,8 @@ The expectations are simple:
 This isn't intended to introduce additional reporting or overhead. The idea is to maintain visibility and collaboration while giving teams more ownership of their day-to-day discussions.
 
 Please share any suggestions on how we can make this work effectively!
+
+
+Are you happy for us to proceed with the proposed groupings and workstream coordinators (touchpoint persons), or are there any changes you'd recommend?
+
+Once approved, I'll coordinate the stand-up arrangements, update the calendar invites, and share a recap with the wider squad for those who missed the discussion. We'll also reiterate the changes during Monday's sync.
