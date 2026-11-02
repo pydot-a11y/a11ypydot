@@ -15,3 +15,29 @@ The goal is to give each capability room for deeper technical collaboration whil
 **We'll pilot this approach and review how it's working during our November retrospective, adjusting as needed.**
 
 Thanks, everyone! Looking forward to seeing how this works for us. 🚀
+
+
+
+Hi everyone! 👋
+
+Following our stand-up restructure, below are the agreed capability groupings and their respective coordinators.
+
+**[Capability 1]**
+- Coordinator: @Name
+- Contributors: @Name, @Name
+
+**[Capability 2]**
+- Coordinator: @Name
+- Contributors: @Name, @Name
+
+**[Capability 3]**
+- Coordinator: @Name
+- Contributors: @Name, @Name
+
+Starting tomorrow, capability owners will coordinate their respective 15-minute stand-ups. Please work together to agree on suitable times and send out the invites.
+
+We'll retain our squad-wide touchpoints on Wednesdays and Fridays to stay aligned.
+
+If we've missed anyone or adjustments are needed, please flag them so we can update the groupings.
+
+Thanks, everyone!
